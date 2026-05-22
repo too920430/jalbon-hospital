@@ -20,7 +20,7 @@ export default function TherapistDashboard() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()));
-  const [tab, setTab] = useState<'today' | 'all' | 'calendar'>('calendar');
+  const [tab, setTab] = useState<'today' | 'all' | 'calendar'>('today');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
@@ -135,7 +135,7 @@ export default function TherapistDashboard() {
             className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all
               ${tab === 'calendar' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
           >
-            월간 캘린더
+            월별 조회
           </button>
         </div>
 
