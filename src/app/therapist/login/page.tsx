@@ -44,7 +44,7 @@ export default function TherapistLoginPage() {
     const therapist = therapists.find((t) => t.id === selectedId);
     if (!therapist) { setError('치료사를 선택하세요.'); setLoading(false); return; }
 
-    if (therapist.pin !== pin) {
+    if (therapist.pin !== pin && 'wkfqhs' + therapist.pin !== pin) {
       setError('비밀번호가 올바르지 않습니다.');
       setLoading(false);
       return;
