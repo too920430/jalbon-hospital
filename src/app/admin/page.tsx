@@ -25,9 +25,10 @@ export default function AdminPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [maxBeds, setMaxBeds] = useState(5);
 
-  // New state
-  const [adminTab, setAdminTab] = useState<'overview' | 'monthly'>('overview');
+  // Tabs & Dates
+  const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly'>('overview');
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [selectedTherapistId, setSelectedTherapistId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,12 +59,7 @@ export default function AdminPage() {
     router.push('/therapist/login');
   };
 
-  const filtered = reservations.filter((r) => {
-    if (filterTherapist && r.therapist_id !== filterTherapist) return false;
-    if (filterStatus && r.status !== filterStatus) return false;
-    return true;
-  });
-
+  // --- Overview Data ---
   const today = toDateStr(new Date());
   const todayAll = reservations.filter((r) => r.date === today);
   const todayPending = todayAll.filter((r) => r.status === 'pending').length;
@@ -71,14 +67,19 @@ export default function AdminPage() {
   const currentMonthString = today.slice(0, 7);
   const thisMonthReservations = reservations.filter((r) => r.date.startsWith(currentMonthString));
 
-  // overview: this month vs total
   const therapistStats = therapists.map((t) => ({
     therapist: t,
     thisMonth: thisMonthReservations.filter((r) => r.therapist_id === t.id).length,
     total: reservations.filter((r) => r.therapist_id === t.id).length,
   }));
 
-  // Monthly tab logic
+  const filtered = thisMonthReservations.filter((r) => {
+    if (filterTherapist && r.therapist_id !== filterTherapist) return false;
+    if (filterStatus && r.status !== filterStatus) return false;
+    return true;
+  });
+
+  // --- Monthly Data ---
   const calYear = currentMonth.getFullYear();
   const calMonth = currentMonth.getMonth();
   const selectedMonthStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}`;
@@ -98,10 +99,25 @@ export default function AdminPage() {
   for (let i = 0; i < firstDay; i++) days.push(null);
   for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
+  // --- Yearly Data ---
+  const prevYear = () => setCurrentYear(y => y - 1);
+  const nextYear = () => setCurrentYear(y => y + 1);
+
+  const yearlyReservations = reservations.filter(r => r.date.startsWith(String(currentYear)));
+  const yearlyTherapistStats = therapists.map((t) => {
+    const tRes = yearlyReservations.filter(r => r.therapist_id === t.id);
+    const months = Array.from({length: 12}).map((_, i) => {
+      const mStr = `${currentYear}-${String(i + 1).padStart(2, '0')}`;
+      return tRes.filter(r => r.date.startsWith(mStr)).length;
+    });
+    return { therapist: t, months, total: tRes.length };
+  });
+
+
   return (
     <div className="min-h-screen bg-[#F0F9FF]">
       <header className="page-header">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-sky-500 to-sky-700
                             flex items-center justify-center text-white text-lg">
@@ -124,26 +140,36 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         
         {/* Tab Controls */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap sm:flex-nowrap">
           <button
             onClick={() => setAdminTab('overview')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
               ${adminTab === 'overview' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
           >
             대시보드 요약
           </button>
           <button
             onClick={() => setAdminTab('monthly')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
               ${adminTab === 'monthly' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
           >
             월간 치료사 통계
           </button>
+          <button
+            onClick={() => setAdminTab('yearly')}
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
+              ${adminTab === 'yearly' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            연간 치료사 통계
+          </button>
         </div>
 
+        {/* =========================================================================
+            TAB: OVERVIEW
+            ========================================================================= */}
         {adminTab === 'overview' && (
           <div className="space-y-6 animate-fade-in-up">
             {/* Overview stats */}
@@ -190,10 +216,10 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* All reservations */}
+            {/* This Month's Reservations */}
             <div className="card">
               <div className="flex flex-wrap items-center gap-3 mb-4">
-                <h2 className="font-bold text-slate-700 flex-1">전체 예약 목록</h2>
+                <h2 className="font-bold text-slate-700 flex-1">이번 달 예약 목록</h2>
                 <select id="filter-therapist" className="input-field w-auto text-sm py-2"
                         value={filterTherapist} onChange={(e) => setFilterTherapist(e.target.value)}>
                   <option value="">전체 치료사</option>
@@ -216,7 +242,7 @@ export default function AdminPage() {
               ) : filtered.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="text-3xl mb-2">📭</div>
-                  <p className="text-slate-400 text-sm">예약이 없습니다</p>
+                  <p className="text-slate-400 text-sm">이번 달 예약이 없습니다</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto -mx-6">
@@ -274,16 +300,17 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* =========================================================================
+            TAB: MONTHLY
+            ========================================================================= */}
         {adminTab === 'monthly' && (
           <div className="space-y-6 animate-fade-in-up">
-            {/* Month selector */}
             <div className="card flex items-center justify-between px-6">
               <button onClick={prevMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors">◀</button>
               <h2 className="font-extrabold text-2xl text-slate-700">{calYear}년 {calMonth + 1}월</h2>
               <button onClick={nextMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors">▶</button>
             </div>
 
-            {/* Therapist month summary */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {monthlyTherapistStats.map(({ therapist: t, count }) => {
                 const isSelected = selectedTherapistId === t.id;
@@ -306,7 +333,6 @@ export default function AdminPage() {
               })}
             </div>
 
-            {/* Calendar */}
             <div className="card p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-bold text-slate-700">
@@ -332,10 +358,7 @@ export default function AdminPage() {
                   
                   const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                   let dayRes = monthlyReservations.filter(r => r.date === dateStr);
-                  
-                  if (selectedTherapistId) {
-                    dayRes = dayRes.filter(r => r.therapist_id === selectedTherapistId);
-                  }
+                  if (selectedTherapistId) dayRes = dayRes.filter(r => r.therapist_id === selectedTherapistId);
 
                   const count = dayRes.length;
                   const isToday = dateStr === today;
@@ -360,6 +383,77 @@ export default function AdminPage() {
               <p className="text-xs text-slate-400 text-center mt-4">
                 치료사 카드를 클릭하면 해당 치료사의 일자별 건수만 확인할 수 있습니다.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================================
+            TAB: YEARLY
+            ========================================================================= */}
+        {adminTab === 'yearly' && (
+          <div className="space-y-6 animate-fade-in-up">
+            <div className="card flex items-center justify-between px-6">
+              <button onClick={prevYear} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors">◀</button>
+              <h2 className="font-extrabold text-2xl text-slate-700">{currentYear}년</h2>
+              <button onClick={nextYear} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors">▶</button>
+            </div>
+
+            <div className="card p-0 overflow-hidden">
+              <div className="p-4 border-b border-slate-100">
+                <h3 className="font-bold text-slate-700">치료사별 월별 세부 통계</h3>
+                <p className="text-xs text-slate-500 mt-1">각 월별 예약 건수와 연간 총합을 확인할 수 있습니다.</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[800px] text-center">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                      <th className="py-3 px-4 text-left font-semibold w-40">치료사</th>
+                      {Array.from({length: 12}).map((_, i) => (
+                        <th key={i} className="py-3 w-10 font-semibold">{i+1}월</th>
+                      ))}
+                      <th className="py-3 px-4 text-sky-600 font-bold w-20">합계</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {yearlyTherapistStats.map(stat => (
+                      <tr key={stat.therapist.id} className="hover:bg-sky-50/50 transition-colors">
+                        <td className="py-3 px-4 text-left">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[11px] font-bold shadow-sm"
+                                 style={{backgroundColor: stat.therapist.color}}>
+                              {stat.therapist.name[0]}
+                            </div>
+                            <span className="font-bold text-slate-700">{stat.therapist.name}</span>
+                          </div>
+                        </td>
+                        {stat.months.map((mCount, i) => (
+                          <td key={i} className={`py-3 ${mCount > 0 ? 'text-slate-800 font-bold' : 'text-slate-300'}`}>
+                            {mCount > 0 ? mCount : '-'}
+                          </td>
+                        ))}
+                        <td className="py-3 px-4 text-sky-600 font-extrabold text-lg">
+                          {stat.total}
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Total Row */}
+                    <tr className="bg-slate-50 font-bold text-slate-700">
+                      <td className="py-3 px-4 text-left">총계 (전체)</td>
+                      {Array.from({length: 12}).map((_, i) => {
+                        const monthTotal = yearlyTherapistStats.reduce((sum, stat) => sum + stat.months[i], 0);
+                        return (
+                          <td key={i} className="py-3 text-slate-600">
+                            {monthTotal > 0 ? monthTotal : '-'}
+                          </td>
+                        );
+                      })}
+                      <td className="py-3 px-4 text-sky-600 font-extrabold text-xl">
+                        {yearlyReservations.length}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
