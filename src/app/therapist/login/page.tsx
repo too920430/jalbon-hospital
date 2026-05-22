@@ -13,9 +13,13 @@ export default function TherapistLoginPage() {
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingTherapists, setLoadingTherapists] = useState(true);
 
   useEffect(() => {
-    getTherapists().then(setTherapists);
+    getTherapists().then((data) => {
+      setTherapists(data);
+      setLoadingTherapists(false);
+    });
   }, []);
 
   const handleLogin = async () => {
@@ -65,8 +69,11 @@ export default function TherapistLoginPage() {
               className="input-field"
               value={selectedId}
               onChange={(e) => setSelectedId(e.target.value)}
+              disabled={loadingTherapists}
             >
-              <option value="">치료사를 선택하세요</option>
+              <option value="">
+                {loadingTherapists ? '⏳ 치료사 목록 불러오는 중...' : '치료사를 선택하세요'}
+              </option>
               {therapists.map((t) => (
                 <option key={t.id} value={t.id}>{formatTherapistName(t.name)}</option>
               ))}
