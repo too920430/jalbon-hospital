@@ -91,9 +91,9 @@ export default function TherapistLoginPage() {
             <label className="text-sm font-semibold text-slate-600 mb-1.5 block">비밀번호</label>
             <input
               id="pin-input"
-              className="input-field text-center text-xl"
+              className="input-field tracking-widest text-center text-xl"
               type="password"
-              placeholder="wkfqhs + 4자리"
+              placeholder="••••"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
