@@ -27,19 +27,25 @@ export default function TherapistLoginPage() {
     setLoading(true);
     setError('');
 
-    const therapist = therapists.find((t) => t.id === selectedId);
-    if (!therapist) { setError('치료사를 선택하세요.'); setLoading(false); return; }
-
-    // Admin check
-    if (pin === '0000') {
+    // 관리자 로그인 처리
+    if (selectedId === 'admin') {
+      if (pin !== 'wkfqhs2022!') {
+        setError('비밀번호가 올바르지 않습니다.');
+        setLoading(false);
+        return;
+      }
       sessionStorage.setItem('jalbon_role', 'admin');
-      sessionStorage.setItem('jalbon_therapist', JSON.stringify(therapist));
+      sessionStorage.setItem('jalbon_therapist', JSON.stringify({ id: 'admin', name: '관리자', color: '#64748b' }));
       router.push('/admin');
       return;
     }
 
+    // 일반 치료사 로그인 처리
+    const therapist = therapists.find((t) => t.id === selectedId);
+    if (!therapist) { setError('치료사를 선택하세요.'); setLoading(false); return; }
+
     if (therapist.pin !== pin) {
-      setError('PIN 번호가 올바르지 않습니다.');
+      setError('비밀번호가 올바르지 않습니다.');
       setLoading(false);
       return;
     }
@@ -77,20 +83,19 @@ export default function TherapistLoginPage() {
               {therapists.map((t) => (
                 <option key={t.id} value={t.id}>{formatTherapistName(t.name)}</option>
               ))}
+              <option value="admin">관리자</option>
             </select>
           </div>
 
           <div>
-            <label className="text-sm font-semibold text-slate-600 mb-1.5 block">PIN 번호</label>
+            <label className="text-sm font-semibold text-slate-600 mb-1.5 block">비밀번호</label>
             <input
               id="pin-input"
               className="input-field tracking-widest text-center text-xl"
               type="password"
-              inputMode="numeric"
-              maxLength={4}
               placeholder="••••"
               value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              onChange={(e) => setPin(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
             />
           </div>
@@ -112,7 +117,7 @@ export default function TherapistLoginPage() {
         </div>
 
         <p className="text-center text-xs text-slate-400">
-          관리자: PIN <strong>0000</strong> 입력
+          관리자 로그인 시 메뉴에서 '관리자'를 선택하세요.
         </p>
 
         <div className="text-center">
