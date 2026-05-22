@@ -20,7 +20,7 @@ export default function TherapistDashboard() {
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()));
-  const [tab, setTab] = useState<'today' | 'all' | 'calendar'>('today');
+  const [tab, setTab] = useState<'today' | 'all' | 'calendar'>('calendar');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
