@@ -99,15 +99,6 @@ export default function HomePage() {
             </div>
           </div>
         </div>
-
-        {/* Staff login link */}
-        <div className="text-center mt-6 animate-fade-in-up" style={{ animationDelay: '0.35s' }}>
-          <Link href="/therapist/login"
-                id="staff-login-link"
-                className="text-slate-400 text-sm hover:text-sky-500 transition-colors underline-offset-2 hover:underline">
-            치료사 / 관리자 로그인
-          </Link>
-        </div>
       </div>
     </main>
   );
