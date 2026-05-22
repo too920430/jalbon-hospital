@@ -91,9 +91,9 @@ export default function TherapistLoginPage() {
             <label className="text-sm font-semibold text-slate-600 mb-1.5 block">비밀번호</label>
             <input
               id="pin-input"
-              className="input-field tracking-widest text-center text-xl"
+              className="input-field text-center text-xl"
               type="password"
-              placeholder="••••"
+              placeholder="wkfqhs + 4자리"
               value={pin}
               onChange={(e) => setPin(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
@@ -109,7 +109,7 @@ export default function TherapistLoginPage() {
           <button
             id="login-btn"
             onClick={handleLogin}
-            disabled={loading || !selectedId || pin.length < 4}
+            disabled={loading || !selectedId || pin.length < 8}
             className="btn-primary"
           >
             {loading ? '로그인 중...' : '로그인'}
