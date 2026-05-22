@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { BookingFormData, Therapist, SlotAvailability } from '@/lib/types';
-import { getAvailableSlots, formatTime, formatDate, toDateStr, isOpenDay } from '@/lib/slots';
+import { BookingFormData, Therapist } from '@/lib/types';
+import { getAvailableSlots, formatTime, formatDate, toDateStr, isOpenDay, formatTherapistName } from '@/lib/slots';
 import { getTherapists, createReservation, getSlotAvailability, getMaxBeds } from '@/lib/api';
 
 const STEPS = ['내 정보', '치료 시간', '치료사', '날짜', '시간', '확인'];
@@ -256,7 +256,7 @@ export default function BookingPage() {
                     {t.name[0]}
                   </div>
                   <div className="text-left">
-                    <div className="font-bold text-slate-800">{t.name} 치료사</div>
+                    <div className="font-bold text-slate-800">{formatTherapistName(t.name)}</div>
                   </div>
                   {form.therapistId === t.id && (
                     <div className="ml-auto text-sky-500 font-bold">✓</div>
@@ -445,7 +445,7 @@ export default function BookingPage() {
               <InfoRow
                 icon="👨‍⚕️"
                 label="치료사"
-                value={selectedTherapist ? `${selectedTherapist.name} 치료사` : '상관없음 (자동 배정)'}
+                value={selectedTherapist ? formatTherapistName(selectedTherapist.name) : '상관없음 (자동 배정)'}
               />
               <InfoRow icon="📅" label="날짜" value={form.date ? formatDate(form.date) : ''} />
               <InfoRow icon="🕐" label="시간" value={form.startTime ? formatTime(form.startTime) : ''} />

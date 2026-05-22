@@ -58,6 +58,12 @@ export function formatDate(dateStr: string): string {
   return `${month}월 ${day}일 (${dayName})`;
 }
 
+// ─── 유틸리티 함수 ──────────────────────────────────────────────
+export function formatTherapistName(name: string): string {
+  // 이름에 공백이 있으면(예: "서영준 팀장") 그대로 반환, 아니면 "치료사" 붙임
+  return name.includes(' ') ? name : `${name} 치료사`;
+}
+
 /** 오늘 날짜 YYYY-MM-DD */
 export function todayStr(): string {
   return new Date().toISOString().split('T')[0];

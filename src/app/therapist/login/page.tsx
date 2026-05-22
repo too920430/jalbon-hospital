@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTherapists } from '@/lib/api';
 import { Therapist } from '@/lib/types';
+import { formatTherapistName } from '@/lib/slots';
 
 export default function TherapistLoginPage() {
   const router = useRouter();
@@ -67,7 +68,7 @@ export default function TherapistLoginPage() {
             >
               <option value="">치료사를 선택하세요</option>
               {therapists.map((t) => (
-                <option key={t.id} value={t.id}>{t.name} 치료사</option>
+                <option key={t.id} value={t.id}>{formatTherapistName(t.name)}</option>
               ))}
             </select>
           </div>

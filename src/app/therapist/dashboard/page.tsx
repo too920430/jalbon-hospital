@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
 import { getTherapistReservations, updateReservationStatus } from '@/lib/api';
-import { formatDate, formatTime, toDateStr } from '@/lib/slots';
+import { formatDate, formatTime, toDateStr, formatTherapistName } from '@/lib/slots';
 
 const STATUS_MAP = {
   pending:  { label: '승인 대기', color: 'bg-amber-100 text-amber-700' },
@@ -72,7 +72,7 @@ export default function TherapistDashboard() {
               {therapist.name[0]}
             </div>
             <div>
-              <h1 className="font-bold text-slate-800">{therapist.name} 치료사</h1>
+              <h1 className="font-bold text-slate-800">{formatTherapistName(therapist.name)}</h1>
               <p className="text-xs text-slate-400">도수치료실 관리</p>
             </div>
           </div>

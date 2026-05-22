@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Reservation } from '@/lib/types';
+import { Reservation, Therapist } from '@/lib/types';
 import { getPatientReservations } from '@/lib/api';
-import { formatDate, formatTime } from '@/lib/slots';
+import { formatDate, formatTime, formatTherapistName } from '@/lib/slots';
 
 const STATUS_MAP = {
   pending:  { label: '승인 대기', color: 'bg-amber-100 text-amber-700' },
@@ -127,7 +127,7 @@ export default function MyBookingPage() {
                       <div className="space-y-1 text-sm text-slate-500">
                         <p>
                           👨‍⚕️ {res.therapist?.name
-                            ? `${res.therapist.name} 치료사`
+                            ? formatTherapistName(res.therapist.name)
                             : '치료사 미정'}
                         </p>
                         {res.note && (
