@@ -412,3 +412,39 @@ function getLocalAuditLogs(): AuditLog[] {
     return [];
   }
 }
+
+// ─── 환자 비밀번호 원격 변경 ──────────────────────────
+export async function updatePatientPin(phone: string, newPin: string): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured) {
+    const reservations = getLocalReservations();
+    reservations.forEach(r => {
+      if (r.patient_phone === phone) r.pin = newPin;
+    });
+    localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
+    return { success: true };
+  }
+
+  const { error } = await supabase
+    .from('reservations')
+    .update({ pin: newPin })
+    .eq('patient_phone', phone);
+    
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+// ─── 치료사 인센티브 설정 변경 ────────────────────────
+export async function updateTherapistIncentive(therapistId: string, incentive: number): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured) {
+    // mockData.ts의 내용을 런타임에 바꾸기는 어려우므로 localStorage 활용 방식을 쓰거나 스킵
+    return { success: true };
+  }
+
+  const { error } = await supabase
+    .from('therapists')
+    .update({ incentive })
+    .eq('id', therapistId);
+    
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}

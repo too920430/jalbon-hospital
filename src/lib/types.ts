@@ -4,6 +4,7 @@ export interface Therapist {
   color: string;
   pin: string;
   is_active: boolean;
+  incentive: number;
 }
 
 export interface Reservation {

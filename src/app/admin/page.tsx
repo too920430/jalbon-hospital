@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist, AuditLog } from '@/lib/types';
-import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds, deleteReservation, getAuditLogs } from '@/lib/api';
+import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
@@ -40,10 +40,23 @@ export default function AdminPage() {
   const [editSlotAvailability, setEditSlotAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
 
   // Tabs & Dates
-  const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly' | 'logs'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly' | 'logs' | 'patients' | 'settlement'>('overview');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [selectedTherapistId, setSelectedTherapistId] = useState<string | null>(null);
+
+  // Patients & Settlement Tab States
+  const [patientSearch, setPatientSearch] = useState('');
+  const [pinChangePhone, setPinChangePhone] = useState<string | null>(null);
+  const [newPin, setNewPin] = useState('');
+  const [pinSaving, setPinSaving] = useState(false);
+  const [settlementMonth, setSettlementMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
+  const [incentiveSaving, setIncentiveSaving] = useState<string | null>(null); // therapist_id
+  const [editingIncentive, setEditingIncentive] = useState<{ id: string; amount: number } | null>(null);
+  const [settlementDetails, setSettlementDetails] = useState<{ therapistName: string; res: Reservation[] } | null>(null);
 
   // Logs
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -119,6 +132,37 @@ export default function AdminPage() {
       setEditingRes(null);
     }
     setEditSaving(false);
+  };
+
+  const handlePinReset = async () => {
+    if (!pinChangePhone || !newPin || newPin.length !== 4) {
+      alert('새로운 4자리 PIN을 입력해주세요.');
+      return;
+    }
+    setPinSaving(true);
+    const res = await updatePatientPin(pinChangePhone, newPin);
+    setPinSaving(false);
+    if (res.success) {
+      alert('비밀번호가 성공적으로 변경되었습니다.');
+      setPinChangePhone(null);
+      setNewPin('');
+      loadData();
+    } else {
+      alert('비밀번호 변경 실패: ' + res.error);
+    }
+  };
+
+  const handleIncentiveSave = async () => {
+    if (!editingIncentive) return;
+    setIncentiveSaving(editingIncentive.id);
+    const res = await updateTherapistIncentive(editingIncentive.id, editingIncentive.amount);
+    setIncentiveSaving(null);
+    if (res.success) {
+      setEditingIncentive(null);
+      loadData();
+    } else {
+      alert('인센티브 수정 실패: ' + res.error);
+    }
   };
 
   // --- Overview Data ---
@@ -197,6 +241,68 @@ export default function AdminPage() {
     return { therapist: t, months, total: tRes.length };
   });
 
+
+  // --- Patients Data ---
+  const patientGroups = reservations.reduce((acc, r) => {
+    if (!acc[r.patient_phone]) acc[r.patient_phone] = [];
+    acc[r.patient_phone].push(r);
+    return acc;
+  }, {} as Record<string, Reservation[]>);
+
+  const patientsList = Object.entries(patientGroups).map(([phone, resList]) => {
+    const sorted = [...resList].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    const latest = sorted[0];
+    const totalCount = resList.length;
+    const paidCount = resList.filter(r => r.status === 'paid' || r.status === 'done').length;
+    const cancelCount = resList.filter(r => r.status === 'rejected').length;
+    
+    // 주 담당 치료사 계산
+    const thCounts = resList.reduce((acc, r) => {
+      if (r.therapist_id) acc[r.therapist_id] = (acc[r.therapist_id] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    let mainTherapistId = null;
+    let maxCount = 0;
+    for (const [tid, c] of Object.entries(thCounts)) {
+      if (c > maxCount) { maxCount = c; mainTherapistId = tid; }
+    }
+    const mainTherapist = therapists.find(t => t.id === mainTherapistId);
+
+    return {
+      name: latest.patient_name,
+      phone,
+      totalCount,
+      paidCount,
+      cancelCount,
+      latestDate: latest.date,
+      mainTherapist: mainTherapist ? mainTherapist.name : '없음',
+      isNew: paidCount <= 1
+    };
+  }).filter(p => !patientSearch || p.name.includes(patientSearch) || p.phone.includes(patientSearch))
+    .sort((a, b) => b.latestDate.localeCompare(a.latestDate));
+
+  // --- Settlement Data ---
+  const [calSettlementYear, calSettlementMonth] = settlementMonth.split('-').map(Number);
+  const selectedSettlementMonthStr = `${calSettlementYear}-${String(calSettlementMonth).padStart(2, '0')}`;
+  const settlementReservations = reservations.filter(r => r.date.startsWith(selectedSettlementMonthStr));
+
+  const settlementStats = therapists.map(t => {
+    const tRes = settlementReservations.filter(r => r.therapist_id === t.id && r.status === 'paid');
+    const incentiveAmount = t.incentive || 10000;
+    const totalPreTax = tRes.length * incentiveAmount;
+    const tax = Math.floor(totalPreTax * 0.033);
+    const totalPostTax = totalPreTax - tax;
+    
+    return {
+      therapist: t,
+      resList: tRes,
+      count: tRes.length,
+      incentiveAmount,
+      totalPreTax,
+      tax,
+      totalPostTax
+    };
+  });
 
   return (
     <div className="min-h-screen bg-[#F0F9FF]">
@@ -410,6 +516,20 @@ export default function AdminPage() {
               ${adminTab === 'logs' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
           >
             전체 로그
+          </button>
+          <button
+            onClick={() => setAdminTab('patients')}
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
+              ${adminTab === 'patients' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            환자 관리
+          </button>
+          <button
+            onClick={() => setAdminTab('settlement')}
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
+              ${adminTab === 'settlement' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            정산 관리
           </button>
         </div>
 
@@ -884,6 +1004,232 @@ export default function AdminPage() {
                 })()}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* =========================================================================
+            탭 5: 환자 관리
+        ========================================================================= */}
+        {adminTab === 'patients' && (
+          <div className="space-y-6 animate-fade-in-up">
+            <div className="flex justify-between items-end">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">환자 관리</h2>
+                <p className="text-sm text-slate-500">총 {patientsList.length}명의 환자가 방문했습니다.</p>
+              </div>
+              <input
+                type="text"
+                placeholder="이름 또는 전화번호 검색"
+                className="input-field max-w-[200px]"
+                value={patientSearch}
+                onChange={(e) => setPatientSearch(e.target.value)}
+              />
+            </div>
+
+            <div className="card overflow-hidden p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
+                      <th className="p-4 font-semibold">환자명 (전화번호)</th>
+                      <th className="p-4 font-semibold text-center">방문 현황</th>
+                      <th className="p-4 font-semibold text-center">초진/재진</th>
+                      <th className="p-4 font-semibold text-center">주 담당</th>
+                      <th className="p-4 font-semibold text-center">최근 방문일</th>
+                      <th className="p-4 font-semibold text-center">관리</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm divide-y divide-slate-50">
+                    {patientsList.map(p => (
+                      <tr key={p.phone} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-4">
+                          <div className="font-bold text-slate-800">{p.name}</div>
+                          <div className="text-xs text-slate-500">{p.phone}</div>
+                        </td>
+                        <td className="p-4 text-center">
+                          <div className="text-xs">총 <strong className="text-sky-600">{p.totalCount}</strong>건</div>
+                          <div className="text-[10px] text-slate-400 mt-0.5">
+                            (수납 {p.paidCount} / 취소 {p.cancelCount})
+                          </div>
+                        </td>
+                        <td className="p-4 text-center">
+                          {p.isNew 
+                            ? <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-lg text-xs font-semibold">초진</span>
+                            : <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg text-xs font-semibold">재진</span>
+                          }
+                        </td>
+                        <td className="p-4 text-center text-slate-600 font-medium">
+                          {p.mainTherapist}
+                        </td>
+                        <td className="p-4 text-center text-slate-500 text-xs">
+                          {formatDate(p.latestDate)}
+                        </td>
+                        <td className="p-4 text-center">
+                          <button
+                            onClick={() => {
+                              setPinChangePhone(p.phone);
+                              setNewPin('');
+                            }}
+                            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                          >
+                            비밀번호 초기화
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {patientsList.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-400">
+                          검색 결과가 없습니다.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* 비밀번호 강제 변경 팝업 */}
+            {pinChangePhone && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+                <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 animate-fade-in-up">
+                  <h3 className="font-bold text-slate-800 text-lg">비밀번호 강제 변경</h3>
+                  <p className="text-sm text-slate-500">환자 <strong>{pinChangePhone}</strong>의 비밀번호를 새로 설정합니다.</p>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1.5 block">새로운 PIN (4자리 숫자)</label>
+                    <input
+                      type="text"
+                      className="input-field"
+                      placeholder="예: 1234"
+                      maxLength={4}
+                      value={newPin}
+                      onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button onClick={handlePinReset} disabled={pinSaving || newPin.length !== 4} className="btn-primary flex-1 py-2 text-sm">
+                      {pinSaving ? '변경 중...' : '저장하기'}
+                    </button>
+                    <button onClick={() => setPinChangePhone(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =========================================================================
+            탭 6: 정산 관리
+        ========================================================================= */}
+        {adminTab === 'settlement' && (
+          <div className="space-y-6 animate-fade-in-up">
+            <div className="flex justify-between items-end">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">인센티브 정산 관리</h2>
+                <p className="text-sm text-slate-500">수납 완료된 건을 기준으로 단가와 3.3% 세금을 자동 계산합니다.</p>
+              </div>
+              <input
+                type="month"
+                className="input-field max-w-[150px]"
+                value={settlementMonth}
+                onChange={(e) => setSettlementMonth(e.target.value)}
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              {settlementStats.map(stat => (
+                <div key={stat.therapist.id} className="card relative overflow-hidden">
+                  <div className="absolute top-0 left-0 w-full h-1" style={{ backgroundColor: stat.therapist.color }} />
+                  
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+                        {stat.therapist.name}
+                        {!stat.therapist.is_active && <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded uppercase tracking-wider">퇴사/휴직</span>}
+                      </h3>
+                      <div className="text-xs text-slate-500 mt-1">
+                        이번 달 수납 완료: <strong className="text-sky-600">{stat.count}건</strong>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSettlementDetails({ therapistName: stat.therapist.name, res: stat.resList })}
+                      className="text-xs text-sky-600 bg-sky-50 px-2 py-1 rounded-lg font-semibold hover:bg-sky-100"
+                    >
+                      상세 내역 보기
+                    </button>
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-2xl space-y-3 mb-4">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-slate-500">건당 인센티브 설정액</span>
+                      <div className="flex items-center gap-2">
+                        {editingIncentive?.id === stat.therapist.id ? (
+                          <>
+                            <input
+                              type="number"
+                              className="input-field py-1 px-2 w-24 text-right text-xs"
+                              value={editingIncentive.amount}
+                              onChange={(e) => setEditingIncentive({ id: stat.therapist.id, amount: Number(e.target.value) })}
+                            />
+                            <button onClick={handleIncentiveSave} disabled={incentiveSaving === stat.therapist.id} className="text-xs bg-sky-500 text-white px-2 py-1 rounded hover:bg-sky-600">저장</button>
+                            <button onClick={() => setEditingIncentive(null)} className="text-xs text-slate-400 hover:text-slate-600">취소</button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-semibold text-slate-700">{stat.incentiveAmount.toLocaleString()}원</span>
+                            <button onClick={() => setEditingIncentive({ id: stat.therapist.id, amount: stat.incentiveAmount })} className="text-[10px] text-slate-400 hover:text-sky-500 underline">수정</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-slate-500">세전 총액 ({stat.count}건)</span>
+                      <strong className="text-slate-800">{stat.totalPreTax.toLocaleString()}원</strong>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-slate-500">세금 공제 (3.3%)</span>
+                      <strong className="text-red-500">- {stat.tax.toLocaleString()}원</strong>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                    <span className="font-bold text-slate-800">세후 실지급액</span>
+                    <span className="text-xl font-extrabold text-sky-600">{stat.totalPostTax.toLocaleString()}원</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 정산 상세 내역 팝업 */}
+            {settlementDetails && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 overflow-y-auto py-8">
+                <div className="bg-white rounded-3xl shadow-2xl max-w-lg w-full p-6 space-y-4 animate-fade-in-up my-auto">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-lg">{settlementDetails.therapistName} 상세 내역</h3>
+                      <p className="text-sm text-slate-500">{settlementMonth} 수납 완료 총 {settlementDetails.res.length}건</p>
+                    </div>
+                    <button onClick={() => setSettlementDetails(null)} className="text-slate-400 hover:text-slate-600 text-xl font-bold">×</button>
+                  </div>
+                  
+                  <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-2">
+                    {settlementDetails.res.length === 0 ? (
+                      <p className="text-center text-sm text-slate-400 py-8">이번 달 내역이 없습니다.</p>
+                    ) : (
+                      settlementDetails.res.sort((a,b) => (a.date+' '+a.start_time).localeCompare(b.date+' '+b.start_time)).map((r, idx) => (
+                        <div key={r.id} className="bg-slate-50 p-3 rounded-xl flex justify-between items-center">
+                          <div>
+                            <div className="font-bold text-sm text-slate-800">{idx + 1}. {r.patient_name} <span className="text-xs font-normal text-slate-500 ml-1">{r.patient_phone}</span></div>
+                            <div className="text-xs text-slate-500 mt-0.5">{formatDate(r.date)} {formatTime(r.start_time)} ({r.duration}분)</div>
+                          </div>
+                          <span className="text-xs font-bold bg-white px-2 py-1 rounded-lg text-emerald-600 border border-emerald-100">수납 완료</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

@@ -10,6 +10,7 @@ create table if not exists therapists (
   color     text not null default '#0EA5E9',
   pin       text not null,
   is_active boolean not null default true,
+  incentive integer not null default 10000,
   created_at timestamptz default now()
 );
 
@@ -49,13 +50,13 @@ insert into settings (id, max_beds) values (1, 5) on conflict do nothing;
 -- ================================================
 -- 초기 치료사 데이터 (PIN은 실제 운영 전 변경하세요!)
 -- ================================================
-insert into therapists (name, color, pin) values
-  ('이지훈 센터장', '#0EA5E9', 'wkfqhs0001'),
-  ('김보인', '#10B981', 'wkfqhs0002'),
-  ('허헌', '#8B5CF6', 'wkfqhs0003'),
-  ('최연화', '#F59E0B', 'wkfqhs0004'),
-  ('강지나', '#EF4444', 'wkfqhs0005'),
-  ('박규빈', '#3B82F6', 'wkfqhs0006')
+insert into therapists (name, color, pin, incentive) values
+  ('이지훈 센터장', '#0EA5E9', 'wkfqhs0001', 20000),
+  ('김보인', '#10B981', 'wkfqhs0002', 10000),
+  ('허헌', '#8B5CF6', 'wkfqhs0003', 10000),
+  ('최연화', '#F59E0B', 'wkfqhs0004', 10000),
+  ('강지나', '#EF4444', 'wkfqhs0005', 10000),
+  ('박규빈', '#3B82F6', 'wkfqhs0006', 10000)
 on conflict do nothing;
 
 -- ================================================
