@@ -190,7 +190,7 @@ export default function TherapistDashboard() {
 
         {/* 전체 예약 탭 - 년/월 picker */}
         {tab === 'all' && (
-          <div className="flex items-center justify-between card py-3 px-4 animate-fade-in-up">
+          <div className="flex items-center justify-between card py-3 px-4 animate-fade-in-up relative z-50">
             <div className="flex items-center gap-2">
               <button onClick={() => { const d = new Date(allYear, allMonth - 2); setAllYear(d.getFullYear()); setAllMonth(d.getMonth() + 1); }}
                 className="text-slate-400 hover:text-sky-500 font-bold text-lg transition-colors">◀</button>
