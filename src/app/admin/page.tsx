@@ -47,7 +47,9 @@ export default function AdminPage() {
 
   // Patients & Settlement Tab States
   const [patientSearch, setPatientSearch] = useState('');
-  const [patientStatusFilter, setPatientStatusFilter] = useState<'all' | 'done' | 'paid'>('all');
+  const [patientStatusFilter, setPatientStatusFilter] = useState<string>('all');
+  const [patientTypeFilter, setPatientTypeFilter] = useState<'all' | 'new' | 'existing'>('all');
+  const [patientTherapistFilter, setPatientTherapistFilter] = useState<string>('all');
   const [viewingHistoryFor, setViewingHistoryFor] = useState<{name: string, dates: string[]} | null>(null);
   const [pinChangePhone, setPinChangePhone] = useState<string | null>(null);
   const [newPin, setNewPin] = useState('');
@@ -308,6 +310,8 @@ export default function AdminPage() {
     };
   }).filter(p => !patientSearch || p.name.includes(patientSearch) || p.phone.includes(patientSearch))
     .filter(p => patientStatusFilter === 'all' || p.latestStatus === patientStatusFilter)
+    .filter(p => patientTypeFilter === 'all' || (patientTypeFilter === 'new' ? p.isNew : !p.isNew))
+    .filter(p => patientTherapistFilter === 'all' || p.mainTherapist === patientTherapistFilter)
     .sort((a, b) => b.latestDate.localeCompare(a.latestDate));
 
   // --- Settlement Data ---
@@ -1055,22 +1059,53 @@ export default function AdminPage() {
                     <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
                       <th className="p-4 font-semibold">환자명 (전화번호)</th>
                       <th className="p-4 font-semibold text-center">방문 현황</th>
-                      <th className="p-4 font-semibold text-center">초진/재진</th>
                       <th className="p-4 font-semibold text-center">
-                        <div className="flex items-center justify-center gap-2">
-                          현재 상태
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          초진/재진
                           <select
-                            value={patientStatusFilter}
-                            onChange={(e) => setPatientStatusFilter(e.target.value as any)}
-                            className="text-xs border border-slate-200 rounded p-1 text-slate-600 bg-white"
+                            value={patientTypeFilter}
+                            onChange={(e) => setPatientTypeFilter(e.target.value as any)}
+                            className="text-xs border border-slate-200 rounded p-1 text-slate-600 bg-white font-normal"
                           >
                             <option value="all">전체</option>
-                            <option value="done">수납대기</option>
-                            <option value="paid">수납완료</option>
+                            <option value="new">초진</option>
+                            <option value="existing">재진</option>
                           </select>
                         </div>
                       </th>
-                      <th className="p-4 font-semibold text-center">주 담당</th>
+                      <th className="p-4 font-semibold text-center">
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          현재 상태
+                          <select
+                            value={patientStatusFilter}
+                            onChange={(e) => setPatientStatusFilter(e.target.value)}
+                            className="text-xs border border-slate-200 rounded p-1 text-slate-600 bg-white font-normal"
+                          >
+                            <option value="all">전체</option>
+                            <option value="pending">승인 대기</option>
+                            <option value="approved">예약 확정</option>
+                            <option value="done">수납대기</option>
+                            <option value="paid">수납완료</option>
+                            <option value="rejected">거절됨</option>
+                          </select>
+                        </div>
+                      </th>
+                      <th className="p-4 font-semibold text-center">
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          주 담당
+                          <select
+                            value={patientTherapistFilter}
+                            onChange={(e) => setPatientTherapistFilter(e.target.value)}
+                            className="text-xs border border-slate-200 rounded p-1 text-slate-600 bg-white font-normal max-w-[80px]"
+                          >
+                            <option value="all">전체</option>
+                            {therapists.map(t => (
+                              <option key={t.id} value={t.name}>{t.name}</option>
+                            ))}
+                            <option value="없음">없음</option>
+                          </select>
+                        </div>
+                      </th>
                       <th className="p-4 font-semibold text-center">방문일</th>
                       <th className="p-4 font-semibold text-center">관리</th>
                     </tr>
