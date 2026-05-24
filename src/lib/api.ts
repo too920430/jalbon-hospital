@@ -274,11 +274,11 @@ export async function updateReservationStatus(
       }
       localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
       if (status === 'rejected') {
-        insertAuditLog('RESERVATION_CANCELED', '치료사', { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
+        await insertAuditLog('RESERVATION_CANCELED', '치료사', { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
       } else if (status === 'done') {
-        insertAuditLog('TREATMENT_COMPLETED', '치료사', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
+        await insertAuditLog('TREATMENT_COMPLETED', '치료사', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
       } else if (status === 'paid') {
-        insertAuditLog('PAYMENT_COMPLETED', '관리자', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
+        await insertAuditLog('PAYMENT_COMPLETED', '관리자', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
       }
     }
     return true;
@@ -301,11 +301,11 @@ export async function updateReservationStatus(
   if (!error && resToUpdate) {
     const thName = resToUpdate.therapist?.name || '치료사';
     if (status === 'rejected') {
-      insertAuditLog('RESERVATION_CANCELED', thName, { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
+      await insertAuditLog('RESERVATION_CANCELED', thName, { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
     } else if (status === 'done') {
-      insertAuditLog('TREATMENT_COMPLETED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
+      await insertAuditLog('TREATMENT_COMPLETED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
     } else if (status === 'paid') {
-      insertAuditLog('PAYMENT_COMPLETED', '관리자', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
+      await insertAuditLog('PAYMENT_COMPLETED', '관리자', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
     }
   }
   return !error;
