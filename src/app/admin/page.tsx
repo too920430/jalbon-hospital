@@ -50,7 +50,7 @@ export default function AdminPage() {
   const [patientStatusFilter, setPatientStatusFilter] = useState<'all' | 'pending' | 'approved' | 'done' | 'paid'>('all');
   const [patientTypeFilter, setPatientTypeFilter] = useState<'all' | 'new' | 'existing'>('all');
   const [patientTherapistFilter, setPatientTherapistFilter] = useState<string>('all');
-  const [viewingHistoryFor, setViewingHistoryFor] = useState<{name: string, phone: string, visits: Reservation[]} | null>(null);
+  const [viewingHistoryFor, setViewingHistoryFor] = useState<any>(null);
   const [historyMonth, setHistoryMonth] = useState<string>(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
