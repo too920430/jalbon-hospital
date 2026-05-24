@@ -29,6 +29,7 @@ export default function AdminPage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
+  const [listDate, setListDate] = useState(() => toDateStr(new Date()));
 
 
   // Edit modal state
@@ -70,6 +71,7 @@ export default function AdminPage() {
   const [incentiveSaving, setIncentiveSaving] = useState<string | null>(null); // therapist_id
   const [editingIncentive, setEditingIncentive] = useState<{ id: string; amount: number } | null>(null);
   const [settlementDetails, setSettlementDetails] = useState<{ therapistName: string; res: Reservation[] } | null>(null);
+  const [dailyStatsModal, setDailyStatsModal] = useState<{ date: string; reservations: Reservation[] } | null>(null);
 
   // Logs
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -210,7 +212,7 @@ export default function AdminPage() {
   // --- Overview Data ---
   const today = toDateStr(new Date());
   const todayAll = reservations.filter((r) => r.date === today);
-  const todayDone = todayAll.filter((r) => r.status === 'done').length;
+  const allDone = reservations.filter((r) => r.status === 'done').length;
 
   const currentMonthString = today.slice(0, 7);
   const thisMonthReservations = reservations.filter((r) => r.date.startsWith(currentMonthString));
@@ -223,7 +225,7 @@ export default function AdminPage() {
 
   const filtered = reservations.filter((r) => {
     if (filterDateMode === 'month' && !r.date.startsWith(listMonth)) return false;
-    if (filterDateMode === 'today' && r.date !== today) return false;
+    if (filterDateMode === 'today' && r.date !== listDate) return false;
     if (filterTherapist && r.therapist_id !== filterTherapist) return false;
     if (filterStatus && r.status !== filterStatus) return false;
     return true;
@@ -617,7 +619,7 @@ export default function AdminPage() {
               <StatCard label="오늘 전체" value={todayAll.length} color="text-sky-600" 
                 isActive={filterDateMode === 'today' && filterStatus === ''}
                 onClick={() => { setFilterDateMode('today'); setFilterStatus(''); setFilterTherapist(''); }} />
-              <StatCard label="수납 대기" value={todayDone} color="text-amber-600" highlight={todayDone > 0} 
+              <StatCard label="수납 대기" value={allDone} color="text-amber-600" highlight={allDone > 0} 
                 isActive={filterStatus === 'done'}
                 onClick={() => { setFilterDateMode('all'); setFilterStatus('done'); setFilterTherapist(''); }} />
               <StatCard label="전체 예약" value={reservations.length} color="text-slate-700" 
@@ -667,18 +669,44 @@ export default function AdminPage() {
             {/* Reservation List */}
             <div className="card">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div className="flex items-center gap-3 bg-slate-50 px-4 py-1.5 rounded-2xl border border-slate-100">
-                  <button onClick={handleListMonthPrev} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">◀</button>
-                  <div 
-                    className="relative flex items-center justify-center cursor-pointer hover:text-sky-600 transition-colors"
-                    onClick={() => setPickerType('list')}
-                  >
-                    <h2 className="font-extrabold text-slate-700 min-w-[90px] text-center text-sm">
-                      {listMonth.split('-')[0]}년 {listMonth.split('-')[1]}월
-                    </h2>
+                {filterDateMode === 'today' ? (
+                  <div className="flex items-center gap-3 bg-slate-50 px-4 py-1.5 rounded-2xl border border-slate-100">
+                    <button onClick={() => {
+                      const d = new Date(listDate);
+                      d.setDate(d.getDate() - 1);
+                      setListDate(toDateStr(d));
+                    }} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">◀</button>
+                    <div className="relative flex items-center justify-center cursor-pointer hover:text-sky-600 transition-colors">
+                      <input 
+                        type="date" 
+                        value={listDate} 
+                        onChange={(e) => setListDate(e.target.value)}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                      <h2 className="font-extrabold text-slate-700 min-w-[90px] text-center text-sm">
+                        {listDate.split('-')[0]}.{listDate.split('-')[1]}.{listDate.split('-')[2]}
+                      </h2>
+                    </div>
+                    <button onClick={() => {
+                      const d = new Date(listDate);
+                      d.setDate(d.getDate() + 1);
+                      setListDate(toDateStr(d));
+                    }} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">▶</button>
                   </div>
-                  <button onClick={handleListMonthNext} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">▶</button>
-                </div>
+                ) : (
+                  <div className="flex items-center gap-3 bg-slate-50 px-4 py-1.5 rounded-2xl border border-slate-100">
+                    <button onClick={handleListMonthPrev} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">◀</button>
+                    <div 
+                      className="relative flex items-center justify-center cursor-pointer hover:text-sky-600 transition-colors"
+                      onClick={() => setPickerType('list')}
+                    >
+                      <h2 className="font-extrabold text-slate-700 min-w-[90px] text-center text-sm">
+                        {listMonth.split('-')[0]}년 {listMonth.split('-')[1]}월
+                      </h2>
+                    </div>
+                    <button onClick={handleListMonthNext} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">▶</button>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <select id="filter-therapist" className="input-field w-auto text-sm py-2"
                           value={filterTherapist} onChange={(e) => setFilterTherapist(e.target.value)}>
@@ -898,7 +926,10 @@ export default function AdminPage() {
                     >
                       <span className={`text-xs font-semibold ${isToday ? 'text-sky-600' : 'text-slate-500'}`}>{day}</span>
                       {count > 0 && (
-                        <div className="mt-auto self-center bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full text-xs font-bold shadow-sm">
+                        <div 
+                          onClick={() => setDailyStatsModal({ date: dateStr, reservations: dayRes })}
+                          className="mt-auto self-center bg-sky-100 hover:bg-sky-200 text-sky-700 px-2 py-0.5 rounded-full text-xs font-bold shadow-sm cursor-pointer transition-colors"
+                        >
                           {count}건
                         </div>
                       )}
@@ -1499,6 +1530,51 @@ export default function AdminPage() {
               </button>
               <button onClick={() => setLogDeleteTarget(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          일별 예약 현황 상세 팝업 (월간 치료사 통계 탭)
+      ========================================================================= */}
+      {dailyStatsModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm animate-fade-in-up">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-slate-800 text-lg">
+                {dailyStatsModal.date.split('-')[0]}년 {dailyStatsModal.date.split('-')[1]}월 {dailyStatsModal.date.split('-')[2]}일
+              </h3>
+              <button onClick={() => setDailyStatsModal(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <div className="max-h-60 overflow-y-auto space-y-2 custom-scrollbar pr-2">
+              {dailyStatsModal.reservations.sort((a, b) => a.start_time.localeCompare(b.start_time)).map((res) => {
+                const th = therapists.find(t => t.id === res.therapist_id);
+                return (
+                  <div key={res.id} className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-700 text-sm">{res.patient_name}</span>
+                        {th ? (
+                          <span className="text-[10px] text-white px-1.5 py-0.5 rounded shadow-sm" style={{ backgroundColor: th.color }}>
+                            {th.name}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-white px-1.5 py-0.5 rounded shadow-sm bg-slate-400">
+                            미정
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-1">{res.patient_phone}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="font-bold text-sky-600">{res.start_time.slice(0, 5)}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">{res.duration}분</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <button onClick={() => setDailyStatsModal(null)} className="btn-secondary w-full py-2 mt-4 text-sm">닫기</button>
           </div>
         </div>
       )}

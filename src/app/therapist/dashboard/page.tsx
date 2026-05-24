@@ -172,7 +172,7 @@ export default function TherapistDashboard() {
             <button
               key={t.id}
               onClick={() => { setTab(t.id as TabType); setEditingId(null); }}
-              className={`py-3 px-2 rounded-2xl text-xs font-bold transition-all flex flex-col items-center gap-1
+              className={`py-3 px-2 rounded-2xl text-xs font-bold transition-all flex flex-col items-center justify-center gap-1
                 ${tab === t.id
                   ? 'bg-sky-500 text-white shadow-lg shadow-sky-200'
                   : `bg-white ${t.color} border border-slate-200 hover:border-sky-200`}
