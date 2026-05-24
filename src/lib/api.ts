@@ -228,14 +228,14 @@ export async function updateReservationDateTime(
 }
 
 // ─── 예약 삭제 ─────────────────────────────────────────
-export async function deleteReservation(id: string): Promise<{ success: boolean; error?: string }> {
+export async function deleteReservation(id: string, actorName: string): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) {
     let reservations = getLocalReservations();
     const resToDelete = reservations.find((r) => r.id === id);
     if (resToDelete) {
       reservations = reservations.filter((r) => r.id !== id);
       localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
-      insertAuditLog('RESERVATION_CANCELED', '관리자/치료사', { patientName: resToDelete.patient_name, reason: '삭제됨', date: resToDelete.date, time: resToDelete.start_time });
+      insertAuditLog('RESERVATION_CANCELED', actorName, { patientName: resToDelete.patient_name, reason: '삭제됨', date: resToDelete.date, time: resToDelete.start_time });
     }
     return { success: true };
   }
@@ -249,8 +249,7 @@ export async function deleteReservation(id: string): Promise<{ success: boolean;
   if (error) return { success: false, error: error.message };
 
   if (resToDelete) {
-    const thName = resToDelete.therapist?.name || '관리자/치료사';
-    insertAuditLog('RESERVATION_CANCELED', thName, { patientName: resToDelete.patient_name, reason: '삭제됨', date: resToDelete.date, time: resToDelete.start_time });
+    insertAuditLog('RESERVATION_CANCELED', actorName, { patientName: resToDelete.patient_name, reason: '삭제됨', date: resToDelete.date, time: resToDelete.start_time });
   }
   return { success: true };
 }

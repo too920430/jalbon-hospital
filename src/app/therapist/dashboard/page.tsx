@@ -101,7 +101,7 @@ export default function TherapistDashboard() {
   const handleDelete = async (resId: string) => {
     if (!confirm('정말로 이 예약을 삭제하시겠습니까? (삭제 후 복구할 수 없습니다)')) return;
     setActionLoading(resId);
-    const result = await deleteReservation(resId);
+    const result = await deleteReservation(resId, therapist?.name || '치료사');
     if (!result.success) {
       alert('예약 삭제에 실패했습니다.\nSupabase 대시보드에서 DELETE 권한(policy) 설정이 필요합니다.\n자세한 설정 방법은 개발자에게 문의하세요.');
     } else {

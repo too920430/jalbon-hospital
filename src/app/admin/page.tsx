@@ -110,7 +110,7 @@ export default function AdminPage() {
     if (!editingRes) return;
     if (!confirm('정말로 이 예약을 삭제하시겠습니까? (삭제 후 복구할 수 없습니다)')) return;
     setEditSaving(true);
-    const result = await deleteReservation(editingRes.id);
+    const result = await deleteReservation(editingRes.id, '관리자');
     if (!result.success) {
       alert('예약 삭제에 실패했습니다.\nSupabase 대시보드에서 DELETE 권한(policy) 설정이 필요합니다.');
     } else {
