@@ -205,18 +205,19 @@ export async function updateReservationDateTime(
 }
 
 // ─── 예약 삭제 ─────────────────────────────────────────
-export async function deleteReservation(id: string): Promise<boolean> {
+export async function deleteReservation(id: string): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) {
     let reservations = getLocalReservations();
     reservations = reservations.filter((r) => r.id !== id);
     localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
-    return true;
+    return { success: true };
   }
   const { error } = await supabase
     .from('reservations')
     .delete()
     .eq('id', id);
-  return !error;
+  if (error) return { success: false, error: error.message };
+  return { success: true };
 }
 
 // ─── 전체 예약 (관리자) ───────────────────────────────
