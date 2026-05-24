@@ -305,9 +305,8 @@ export async function updateReservationStatus(
       await insertAuditLog('RESERVATION_CANCELED', thName, { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
     } else if (status === 'done') {
       await insertAuditLog('TREATMENT_COMPLETED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
-    } else if (status === 'paid') {
-      await insertAuditLog('PAYMENT_COMPLETED', '관리자', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
     }
+    // PAYMENT_COMPLETED 로그는 admin page에서 직접 삽입 (중복 방지)
   }
   return !error;
 }

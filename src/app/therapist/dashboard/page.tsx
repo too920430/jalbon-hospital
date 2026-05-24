@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
@@ -8,22 +8,29 @@ import { getTherapistReservations, updateReservationStatus, updateReservationDat
 import { formatDate, formatTime, toDateStr, formatTherapistName, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
-  pending:  { label: '승인 대기', color: 'bg-amber-100 text-amber-700' },
-  approved: { label: '예약 확정', color: 'bg-emerald-100 text-emerald-700' },
-  rejected: { label: '거절됨',   color: 'bg-red-100 text-red-600'      },
-  done:     { label: '수납 대기', color: 'bg-blue-100 text-blue-600'  },
-  paid:     { label: '수납/치료 완료', color: 'bg-slate-100 text-slate-600' },
+  pending:  { label: '승인 대기',      color: 'bg-amber-100 text-amber-700'   },
+  approved: { label: '예약 확정',      color: 'bg-emerald-100 text-emerald-700' },
+  rejected: { label: '거절됨',         color: 'bg-red-100 text-red-600'       },
+  done:     { label: '수납 대기',      color: 'bg-blue-100 text-blue-600'     },
+  paid:     { label: '수납/치료 완료', color: 'bg-slate-100 text-slate-600'   },
 };
+
+type TabType = 'today' | 'pending' | 'approved' | 'all';
 
 export default function TherapistDashboard() {
   const router = useRouter();
   const [therapist, setTherapist] = useState<Therapist | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(toDateStr(new Date()));
-  const [tab, setTab] = useState<'today' | 'all' | 'calendar'>('today');
+  const [tab, setTab] = useState<TabType>('today');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // 전체 예약 탭 년/월 picker
+  const [allYear, setAllYear] = useState(new Date().getFullYear());
+  const [allMonth, setAllMonth] = useState(new Date().getMonth() + 1);
+  const [showPicker, setShowPicker] = useState(false);
+  const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   // 날짜/시간 편집 상태
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -32,21 +39,22 @@ export default function TherapistDashboard() {
   const [editDuration, setEditDuration] = useState<30 | 50>(50);
   const [editSlotAvailability, setEditSlotAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
 
-
-  // 스탯 카드 필터 상태
-  const [showAll, setShowAll] = useState(false);
-  const [statusFilter, setStatusFilter] = useState('');
-
   useEffect(() => {
     const stored = sessionStorage.getItem('jalbon_therapist');
     const role = sessionStorage.getItem('jalbon_role');
-    if (!stored || role !== 'therapist') {
-      router.push('/therapist/login');
-      return;
-    }
+    if (!stored || role !== 'therapist') { router.push('/therapist/login'); return; }
     const t = JSON.parse(stored) as Therapist;
     setTherapist(t);
     loadReservations(t.id);
+  }, []);
+
+  // 외부 클릭 시 picker 닫기
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setShowPicker(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   const loadReservations = async (therapistId: string) => {
@@ -60,6 +68,8 @@ export default function TherapistDashboard() {
     setActionLoading(id);
     await updateReservationStatus(id, status, undefined, status === 'approved' ? therapist?.id : undefined);
     if (therapist) await loadReservations(therapist.id);
+    // 치료 완료 처리 후 전체 예약 탭으로 이동
+    if (status === 'done') setTab('all');
     setActionLoading(null);
   };
 
@@ -68,25 +78,18 @@ export default function TherapistDashboard() {
     setEditDate(res.date);
     setEditTime(res.start_time.slice(0, 5));
     setEditDuration(res.duration);
-
-    // 해당 날짜 슬롯 가용성 조회 (본인 예약만)
-    if (therapist) {
-      getSlotAvailability(res.date, therapist.id).then(setEditSlotAvailability);
-    }
+    if (therapist) getSlotAvailability(res.date, therapist.id).then(setEditSlotAvailability);
   };
 
-  // 편집 날짜/치료시간 변경 시 슬롯 재조회
   const handleEditDateChange = (date: string) => {
     setEditDate(date);
-    setEditTime(''); // 날짜 바뀌면 시간 초기화
-    if (date && therapist) {
-      getSlotAvailability(date, therapist.id).then(setEditSlotAvailability);
-    }
+    setEditTime('');
+    if (date && therapist) getSlotAvailability(date, therapist.id).then(setEditSlotAvailability);
   };
 
   const handleEditDurationChange = (dur: 30 | 50) => {
     setEditDuration(dur);
-    setEditTime(''); // 치료시간 바뀌면 시간 초기화
+    setEditTime('');
   };
 
   const handleEditSave = async (res: Reservation) => {
@@ -100,64 +103,33 @@ export default function TherapistDashboard() {
   };
 
   const handleDelete = async (resId: string) => {
-    if (!confirm('정말로 이 예약을 삭제하시겠습니까? (삭제 후 복구할 수 없습니다)')) return;
+    if (!confirm('정말로 이 예약을 삭제하시겠습니까?')) return;
     setActionLoading(resId);
     const result = await deleteReservation(resId, therapist?.name || '치료사');
-    if (!result.success) {
-      alert('예약 삭제에 실패했습니다.\nSupabase 대시보드에서 DELETE 권한(policy) 설정이 필요합니다.\n자세한 설정 방법은 개발자에게 문의하세요.');
-    } else {
-      if (therapist) await loadReservations(therapist.id);
-    }
+    if (!result.success) alert('예약 삭제에 실패했습니다.');
+    else if (therapist) await loadReservations(therapist.id);
     setActionLoading(null);
   };
 
-  // 스탯 카드 클릭 핸들러
-  const handleStatClick = (type: 'today' | 'pending' | 'all') => {
-    setEditingId(null);
-    if (type === 'today') {
-      setTab('today');
-      setShowAll(false);
-      setStatusFilter('');
-    } else if (type === 'pending') {
-      setTab('all');
-      setShowAll(true);
-      setStatusFilter('pending');
-    } else {
-      setTab('all');
-      setShowAll(true);
-      setStatusFilter('');
-    }
-  };
-
-  const logout = () => {
-    sessionStorage.clear();
-    router.push('/therapist/login');
-  };
+  const logout = () => { sessionStorage.clear(); router.push('/therapist/login'); };
 
   const todayStr = toDateStr(new Date());
-  const todayRes = reservations.filter((r) => r.date === todayStr);
-  const pendingCount = reservations.filter((r) => r.status === 'pending').length;
+  const todayRes = reservations.filter(r => r.date === todayStr);
+  const pendingRes = reservations.filter(r => r.status === 'pending');
+  const approvedRes = reservations.filter(r => r.status === 'approved');
 
-  const allDateRes = showAll
-    ? reservations
-    : reservations.filter((r) => r.date === selectedDate);
-  const baseDisplayed = tab === 'today' ? todayRes : allDateRes;
-  const displayed = statusFilter
-    ? baseDisplayed.filter((r) => r.status === statusFilter)
-    : baseDisplayed;
+  const allMonthStr = `${allYear}-${String(allMonth).padStart(2, '0')}`;
+  const allMonthRes = reservations.filter(r => r.date.startsWith(allMonthStr));
 
-  // Calendar logic
-  const calYear = currentMonth.getFullYear();
-  const calMonth = currentMonth.getMonth();
-  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
-  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const displayedMap: Record<TabType, Reservation[]> = {
+    today: todayRes,
+    pending: pendingRes,
+    approved: approvedRes,
+    all: allMonthRes,
+  };
+  const displayed = (displayedMap[tab] || []).sort((a, b) => (a.date + a.start_time).localeCompare(b.date + b.start_time));
 
-  const prevMonth = () => setCurrentMonth(new Date(calYear, calMonth - 1, 1));
-  const nextMonth = () => setCurrentMonth(new Date(calYear, calMonth + 1, 1));
-
-  const days: (number | null)[] = [];
-  for (let i = 0; i < firstDay; i++) days.push(null);
-  for (let i = 1; i <= daysInMonth; i++) days.push(i);
+  const MONTHS = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
 
   if (!therapist) return null;
 
@@ -191,418 +163,253 @@ export default function TherapistDashboard() {
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
 
-        {/* Stats - 클릭 가능 */}
-        <div className="grid grid-cols-3 gap-3">
-          <StatCard
-            label="오늘 예약"
-            value={todayRes.length}
-            color="text-sky-600"
-            active={tab === 'today' && !statusFilter}
-            onClick={() => handleStatClick('today')}
-          />
-          <StatCard
-            label="승인 대기"
-            value={pendingCount}
-            color="text-amber-600"
-            highlight={pendingCount > 0}
-            active={statusFilter === 'pending'}
-            onClick={() => handleStatClick('pending')}
-          />
-          <StatCard
-            label="전체 예약"
-            value={reservations.length}
-            color="text-slate-600"
-            active={tab === 'all' && showAll && !statusFilter}
-            onClick={() => handleStatClick('all')}
-          />
+        {/* Tabs: 오늘 예약 / 승인대기 / 치료확정 / 전체 예약 */}
+        <div className="grid grid-cols-4 gap-2">
+          {([
+            { id: 'today',    label: '오늘 예약',  count: todayRes.length,    color: 'text-sky-600'   },
+            { id: 'pending',  label: '승인 대기',  count: pendingRes.length,  color: 'text-amber-600' },
+            { id: 'approved', label: '치료 확정',  count: approvedRes.length, color: 'text-emerald-600' },
+            { id: 'all',      label: '전체 예약',  count: null,               color: 'text-slate-600' },
+          ] as const).map(t => (
+            <button
+              key={t.id}
+              onClick={() => { setTab(t.id as TabType); setEditingId(null); }}
+              className={`py-3 px-2 rounded-2xl text-xs font-bold transition-all flex flex-col items-center gap-1
+                ${tab === t.id
+                  ? 'bg-sky-500 text-white shadow-lg shadow-sky-200'
+                  : `bg-white ${t.color} border border-slate-200 hover:border-sky-200`}
+                ${t.id === 'pending' && pendingRes.length > 0 && tab !== 'pending' ? 'border-amber-300 bg-amber-50' : ''}`}
+            >
+              {t.count !== null && (
+                <span className={`text-lg font-extrabold leading-none ${tab === t.id ? 'text-white' : t.color}`}>{t.count}</span>
+              )}
+              <span className={`leading-tight ${tab === t.id ? 'text-white' : 'text-slate-500'}`}>{t.label}</span>
+            </button>
+          ))}
         </div>
 
-        {/* 필터 배지 */}
-        {statusFilter && (
-          <div className="flex items-center gap-2 animate-fade-in-up">
-            <span className="text-xs bg-amber-100 text-amber-700 px-3 py-1.5 rounded-full font-semibold">
-              {STATUS_MAP[statusFilter as keyof typeof STATUS_MAP]?.label} 필터 적용 중
-            </span>
-            <button
-              onClick={() => setStatusFilter('')}
-              className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              ✕ 필터 해제
-            </button>
+        {/* 전체 예약 탭 - 년/월 picker */}
+        {tab === 'all' && (
+          <div className="flex items-center justify-between card py-3 px-4 animate-fade-in-up">
+            <div className="flex items-center gap-2">
+              <button onClick={() => { const d = new Date(allYear, allMonth - 2); setAllYear(d.getFullYear()); setAllMonth(d.getMonth() + 1); }}
+                className="text-slate-400 hover:text-sky-500 font-bold text-lg transition-colors">◀</button>
+              <button
+                onClick={() => { setPickerYear(allYear); setShowPicker(v => !v); }}
+                className="font-extrabold text-lg text-slate-700 hover:text-sky-600 transition-colors cursor-pointer"
+              >
+                {allYear}년 {allMonth}월
+              </button>
+              <button onClick={() => { const d = new Date(allYear, allMonth); setAllYear(d.getFullYear()); setAllMonth(d.getMonth() + 1); }}
+                className="text-slate-400 hover:text-sky-500 font-bold text-lg transition-colors">▶</button>
+            </div>
+            <span className="text-xs text-slate-400">{allMonthRes.length}건</span>
+
+            {/* 피커 팝업 */}
+            {showPicker && (
+              <div ref={pickerRef} className="absolute top-auto mt-2 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-4 w-64"
+                style={{ left: '50%', transform: 'translateX(-50%)', top: 'auto', marginTop: '60px' }}>
+                <div className="flex items-center justify-between mb-3">
+                  <button onClick={() => setPickerYear(y => y - 1)} className="text-slate-400 hover:text-sky-500 font-bold">◀</button>
+                  <span className="font-bold text-slate-700">{pickerYear}년</span>
+                  <button onClick={() => setPickerYear(y => y + 1)} className="text-slate-400 hover:text-sky-500 font-bold">▶</button>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {MONTHS.map((m, i) => (
+                    <button key={i}
+                      onClick={() => { setAllYear(pickerYear); setAllMonth(i + 1); setShowPicker(false); }}
+                      className={`py-2 rounded-xl text-sm font-semibold transition-all
+                        ${allYear === pickerYear && allMonth === i + 1
+                          ? 'bg-sky-500 text-white'
+                          : 'bg-slate-50 text-slate-600 hover:bg-sky-50'}`}
+                    >{m}</button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex gap-2">
-          <button
-            id="tab-today"
-            onClick={() => { setTab('today'); setShowAll(false); setStatusFilter(''); setEditingId(null); }}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all
-              ${tab === 'today' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            오늘 예약 {todayRes.length > 0 && `(${todayRes.length})`}
-          </button>
-          <button
-            id="tab-all"
-            onClick={() => { setTab('all'); setShowAll(false); setStatusFilter(''); setEditingId(null); }}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all
-              ${tab === 'all' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            날짜별 조회
-          </button>
-          <button
-            id="tab-calendar"
-            onClick={() => { setTab('calendar'); setShowAll(false); setStatusFilter(''); setEditingId(null); }}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all
-              ${tab === 'calendar' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            월별 조회
-          </button>
-        </div>
-
-        {/* Calendar View */}
-        {tab === 'calendar' && (
-          <div className="card animate-fade-in-up p-4">
-            <div className="flex items-center justify-between mb-4 px-2">
-              <button onClick={prevMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors">◀</button>
-              <h2 className="font-bold text-lg text-slate-700">{calYear}년 {calMonth + 1}월</h2>
-              <button onClick={nextMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors">▶</button>
-            </div>
-            <div className="grid grid-cols-7 gap-1 text-center mb-2 text-xs font-semibold text-slate-400">
-              <div className="text-red-400">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div className="text-sky-400">토</div>
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-              {days.map((day, idx) => {
-                if (day === null) return <div key={`empty-${idx}`} className="h-16 rounded-xl bg-slate-50" />;
-                const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const dayRes = reservations.filter(r => r.date === dateStr);
-                const isToday = dateStr === todayStr;
-                return (
-                  <div
-                    key={day}
-                    onClick={() => { setSelectedDate(dateStr); setTab('all'); setShowAll(false); setStatusFilter(''); }}
-                    className={`h-16 rounded-xl border flex flex-col items-center justify-center cursor-pointer transition-all ${
-                      isToday ? 'border-sky-500 bg-sky-50' : 'border-slate-100 bg-white hover:bg-slate-50 hover:border-sky-200'
-                    }`}
-                  >
-                    <span className={`text-xs font-bold ${isToday ? 'text-sky-600' : 'text-slate-600'}`}>{day}</span>
-                    {dayRes.length > 0 && (
-                      <span className="mt-1 text-[10px] font-bold bg-sky-100 text-sky-700 px-1.5 py-0.5 rounded-full">
-                        {dayRes.length}건
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <p className="text-xs text-slate-400 text-center mt-4">날짜를 클릭하면 해당 일자의 예약 현황을 볼 수 있습니다.</p>
+        {/* 예약 목록 */}
+        {loading ? (
+          <div className="card text-center py-12">
+            <div className="text-4xl mb-3 animate-pulse-soft">⏳</div>
+            <p className="text-slate-400">불러오는 중...</p>
           </div>
-        )}
-
-        {/* Date picker for 'all' tab */}
-        {tab === 'all' && !showAll && (
-          <div className="card animate-fade-in-up">
-            <label className="text-sm font-semibold text-slate-600 mb-2 block">날짜 선택</label>
-            <input
-              id="date-picker"
-              type="date"
-              className="input-field"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-            />
+        ) : displayed.length === 0 ? (
+          <div className="card text-center py-12 animate-fade-in-up">
+            <div className="text-4xl mb-3">📭</div>
+            <p className="font-semibold text-slate-700">
+              {tab === 'pending' ? '승인 대기 중인 예약이 없습니다' :
+               tab === 'approved' ? '치료 확정된 예약이 없습니다' :
+               tab === 'today' ? '오늘 예약이 없습니다' : '예약이 없습니다'}
+            </p>
           </div>
-        )}
-
-        {tab === 'all' && showAll && (
-          <div className="flex items-center gap-2 px-1 animate-fade-in-up">
-            <span className="text-xs text-slate-500 font-medium">전체 날짜 조회 중</span>
-            <button
-              onClick={() => { setShowAll(false); setStatusFilter(''); }}
-              className="text-xs text-sky-500 font-semibold hover:underline"
-            >
-              날짜별 조회로 전환
-            </button>
-          </div>
-        )}
-
-        {/* Reservations list */}
-        {tab !== 'calendar' && (
-          loading ? (
-            <div className="card text-center py-12">
-              <div className="text-4xl mb-3 animate-pulse-soft">⏳</div>
-              <p className="text-slate-400">불러오는 중...</p>
-            </div>
-          ) : displayed.length === 0 ? (
-            <div className="card text-center py-12">
-              <div className="text-4xl mb-3">📭</div>
-              <p className="font-semibold text-slate-700">예약이 없습니다</p>
-            </div>
-          ) : (
-            <div className="space-y-3 animate-fade-in-up">
-              {displayed
-                .sort((a, b) => (a.date + a.start_time).localeCompare(b.date + b.start_time))
-                .map((res) => {
-                  const statusInfo = STATUS_MAP[res.status];
-                  const isEditing = editingId === res.id;
-                  return (
-                    <div key={res.id} className="card">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <p className="font-bold text-slate-800 text-lg">
-                            {formatTime(res.start_time)}
-                            <span className="text-sm text-slate-400 font-normal ml-2">{res.duration}분</span>
-                          </p>
-                          <p className="text-slate-500 text-sm">{formatDate(res.date)}</p>
-                        </div>
-                        <div className="flex flex-col items-end gap-1">
-                          <span className={`status-badge ${statusInfo.color}`}>
-                            {statusInfo.label}
-                          </span>
-                          {!res.therapist_id && (
-                            <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-bold">
-                              치료사 미지정
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="space-y-1 text-sm text-slate-600 mb-3">
-                        <p>👤 <strong>{res.patient_name}</strong></p>
-                        <p>📱 {res.patient_phone}</p>
-                        {res.pin && <p className="text-xs text-slate-400 mt-1">🔒 PIN: {res.pin}</p>}
-                      </div>
-
-                      {/* 날짜/시간 변경 섹션 */}
-                      {isEditing ? (
-                        <div className="mt-2 p-3 bg-sky-50 rounded-2xl border border-sky-100 space-y-3">
-                          <p className="text-xs font-bold text-sky-700">📅 날짜/시간 변경</p>
-                          {/* 날짜 + 치료시간 */}
-                          <div className="flex gap-2">
-                            <div className="flex-1">
-                              <label className="text-xs text-slate-500 mb-1 block">날짜</label>
-                              <input
-                                type="date"
-                                className="input-field text-sm"
-                                value={editDate}
-                                onChange={(e) => handleEditDateChange(e.target.value)}
-                              />
-                            </div>
-                            <div className="w-24">
-                              <label className="text-xs text-slate-500 mb-1 block">치료 시간</label>
-                              <select
-                                className="input-field text-sm"
-                                value={editDuration}
-                                onChange={(e) => handleEditDurationChange(Number(e.target.value) as 30 | 50)}
-                              >
-                                <option value={30}>30분</option>
-                                <option value={50}>50분</option>
-                              </select>
-                            </div>
-                          </div>
-
-                          {/* 시간 슬롯 그리드 */}
-                          {editDate && (() => {
-                            const dateObj = new Date(editDate + 'T00:00:00');
-                            const slots = getAvailableSlots(dateObj, editDuration);
-                            if (!isOpenDay(dateObj)) return (
-                              <p className="text-xs text-red-400 text-center py-2">해당 날짜는 휴무입니다</p>
-                            );
-                            if (slots.length === 0) return (
-                              <p className="text-xs text-slate-400 text-center py-2">예약 가능한 시간이 없습니다</p>
-                            );
-
-                            const amSlots = slots.filter(t => parseInt(t.split(':')[0]) < 12);
-                            const pmSlots = slots.filter(t => parseInt(t.split(':')[0]) >= 12);
-
-                            return (
-                              <div className="space-y-2">
-                                <label className="text-xs text-slate-500 block">시작 시간 선택</label>
-                                {amSlots.length > 0 && (
-                                  <div>
-                                    <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">오전</p>
-                                    <div className="grid grid-cols-3 gap-1.5">
-                                      {amSlots.map(time => {
-                                        const err = getSlotError(time, editDuration, dateObj);
-                                        const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, res.id);
-                                        const isFull = count >= 1;
-                                        const isSelected = editTime === time;
-                                        const isDisabled = isFull || err !== null;
-                                        return (
-                                          <button
-                                            key={time}
-                                            disabled={isDisabled}
-                                            onClick={() => !isDisabled && setEditTime(time)}
-                                            className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                                              isSelected
-                                                ? 'bg-sky-500 text-white shadow-sm'
-                                                : isDisabled
-                                                  ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
-                                                  : 'bg-white border border-sky-200 text-slate-700 hover:bg-sky-50'
-                                            }`}
-                                          >
-                                            {formatTime(time)}
-                                            {isDisabled && !isSelected && <div className="text-[9px] leading-tight break-keep">{err || '마감'}</div>}
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-                                {pmSlots.length > 0 && (
-                                  <div>
-                                    <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">오후</p>
-                                    <div className="grid grid-cols-3 gap-1.5">
-                                      {pmSlots.map(time => {
-                                        const err = getSlotError(time, editDuration, dateObj);
-                                        const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, res.id);
-                                        const isFull = count >= 1;
-                                        const isSelected = editTime === time;
-                                        const isDisabled = isFull || err !== null;
-                                        return (
-                                          <React.Fragment key={time}>
-                                            <button
-                                              disabled={isDisabled}
-                                              onClick={() => !isDisabled && setEditTime(time)}
-                                              className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                                                isSelected
-                                                  ? 'bg-sky-500 text-white shadow-sm'
-                                                  : isDisabled
-                                                    ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
-                                                    : 'bg-white border border-sky-200 text-slate-700 hover:bg-sky-50'
-                                              }`}
-                                            >
-                                              {formatTime(time)}
-                                              {isDisabled && !isSelected && <div className="text-[9px] leading-tight break-keep">{err || '마감'}</div>}
-                                            </button>
-                                            {time === '12:00' && dateObj.getDay() !== 6 && (
-                                              <div className="col-span-2 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-xl text-slate-400 text-xs font-medium">
-                                                점심시간 12:30 ~ 1:30
-                                              </div>
-                                            )}
-                                          </React.Fragment>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
-                                {/* 범례 */}
-                                <div className="flex gap-3 text-[10px] text-slate-400 pt-1">
-                                  <span className="flex items-center gap-1">
-                                    <span className="w-2.5 h-2.5 rounded bg-white border border-sky-200" /> 예약 가능
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <span className="w-2.5 h-2.5 rounded bg-sky-500" /> 선택됨
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <span className="w-2.5 h-2.5 rounded bg-slate-100" /> 마감
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })()}
-
-                          <div className="flex gap-2 pt-1">
-                            <button
-                              onClick={() => handleEditSave(res)}
-                              disabled={actionLoading === res.id || !editDate || !editTime}
-                              className="btn-success flex-1 text-sm py-2"
-                            >
-                              {actionLoading === res.id ? '저장 중...' : '✓ 저장'}
-                            </button>
-                            <button
-                              onClick={() => setEditingId(null)}
-                              className="btn-secondary flex-1 text-sm py-2"
-                            >
-                              취소
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-2 mb-3">
-                          {res.status !== 'done' && res.status !== 'paid' && (
-                            <>
-                              <button
-                                onClick={() => startEdit(res)}
-                                className="w-full py-1.5 rounded-xl text-xs font-semibold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200"
-                              >
-                                📅 날짜/시간 변경
-                              </button>
-                              <button
-                                onClick={() => handleDelete(res.id)}
-                                disabled={actionLoading === res.id}
-                                className="w-full py-1.5 rounded-xl text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition-colors border border-red-200"
-                              >
-                                {actionLoading === res.id ? '삭제 중...' : '🗑 예약 삭제'}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
-
-                      {/* 승인/거절/완료 버튼 */}
-                      {res.status === 'pending' && (
-                        <div className="flex gap-2">
-                          <button
-                            id={`approve-${res.id}`}
-                            onClick={() => handleAction(res.id, 'approved')}
-                            disabled={actionLoading === res.id}
-                            className="btn-success flex-1"
-                          >
-                            {actionLoading === res.id ? '처리 중...' : '✓ 승인'}
-                          </button>
-                          <button
-                            id={`reject-${res.id}`}
-                            onClick={() => handleAction(res.id, 'rejected')}
-                            disabled={actionLoading === res.id}
-                            className="btn-danger flex-1"
-                          >
-                            ✕ 거절
-                          </button>
-                        </div>
-                      )}
-                      {res.status === 'approved' && (
-                        <button
-                          id={`done-${res.id}`}
-                          onClick={() => handleAction(res.id, 'done')}
-                          disabled={actionLoading === res.id}
-                          className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold transition-colors"
-                        >
-                          치료 완료 처리
-                        </button>
-                      )}
-                      {res.status === 'rejected' && (
-                        <button
-                          onClick={() => handleAction(res.id, 'approved')}
-                          disabled={actionLoading === res.id}
-                          className="w-full py-2 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-sm font-semibold transition-colors mt-2"
-                        >
-                          {actionLoading === res.id ? '처리 중...' : '↺ 다시 승인하기'}
-                        </button>
+        ) : (
+          <div className="space-y-3 animate-fade-in-up">
+            {displayed.map(res => {
+              const statusInfo = STATUS_MAP[res.status];
+              const isEditing = editingId === res.id;
+              return (
+                <div key={res.id} className="card">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="font-bold text-slate-800 text-lg">
+                        {formatTime(res.start_time)}
+                        <span className="text-sm text-slate-400 font-normal ml-2">{res.duration}분</span>
+                      </p>
+                      <p className="text-slate-500 text-sm">{formatDate(res.date)}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`status-badge ${statusInfo.color}`}>{statusInfo.label}</span>
+                      {!res.therapist_id && (
+                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-bold">치료사 미지정</span>
                       )}
                     </div>
-                  );
-                })}
-            </div>
-          )
+                  </div>
+
+                  <div className="space-y-1 text-sm text-slate-600 mb-3">
+                    <p>👤 <strong>{res.patient_name}</strong></p>
+                    <p>📱 {res.patient_phone}</p>
+                    {res.pin && <p className="text-xs text-slate-400 mt-1">🔒 PIN: {res.pin}</p>}
+                  </div>
+
+                  {/* 날짜/시간 변경 섹션 */}
+                  {isEditing ? (
+                    <div className="mt-2 p-3 bg-sky-50 rounded-2xl border border-sky-100 space-y-3">
+                      <p className="text-xs font-bold text-sky-700">📅 날짜/시간 변경</p>
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-xs text-slate-500 mb-1 block">날짜</label>
+                          <input type="date" className="input-field text-sm" value={editDate}
+                            onChange={e => handleEditDateChange(e.target.value)} />
+                        </div>
+                        <div className="w-24">
+                          <label className="text-xs text-slate-500 mb-1 block">치료 시간</label>
+                          <select className="input-field text-sm" value={editDuration}
+                            onChange={e => handleEditDurationChange(Number(e.target.value) as 30 | 50)}>
+                            <option value={30}>30분</option>
+                            <option value={50}>50분</option>
+                          </select>
+                        </div>
+                      </div>
+                      {editDate && (() => {
+                        const dateObj = new Date(editDate + 'T00:00:00');
+                        const slots = getAvailableSlots(dateObj, editDuration);
+                        if (!isOpenDay(dateObj)) return <p className="text-xs text-red-400 text-center py-2">해당 날짜는 휴무입니다</p>;
+                        if (slots.length === 0) return <p className="text-xs text-slate-400 text-center py-2">예약 가능한 시간이 없습니다</p>;
+                        const amSlots = slots.filter(t => parseInt(t.split(':')[0]) < 12);
+                        const pmSlots = slots.filter(t => parseInt(t.split(':')[0]) >= 12);
+                        return (
+                          <div className="space-y-2">
+                            <label className="text-xs text-slate-500 block">시작 시간 선택</label>
+                            {amSlots.length > 0 && (
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 mb-1">오전</p>
+                                <div className="grid grid-cols-3 gap-1.5">
+                                  {amSlots.map(time => {
+                                    const err = getSlotError(time, editDuration, dateObj);
+                                    const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, res.id);
+                                    const isDisabled = count >= 1 || err !== null;
+                                    const isSelected = editTime === time;
+                                    return (
+                                      <button key={time} disabled={isDisabled} onClick={() => !isDisabled && setEditTime(time)}
+                                        className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${isSelected ? 'bg-sky-500 text-white' : isDisabled ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-white border border-sky-200 text-slate-700 hover:bg-sky-50'}`}>
+                                        {formatTime(time)}
+                                        {isDisabled && !isSelected && <div className="text-[9px]">{err || '마감'}</div>}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            {pmSlots.length > 0 && (
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 mb-1">오후</p>
+                                <div className="grid grid-cols-3 gap-1.5">
+                                  {pmSlots.map(time => {
+                                    const err = getSlotError(time, editDuration, dateObj);
+                                    const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, res.id);
+                                    const isDisabled = count >= 1 || err !== null;
+                                    const isSelected = editTime === time;
+                                    return (
+                                      <React.Fragment key={time}>
+                                        <button disabled={isDisabled} onClick={() => !isDisabled && setEditTime(time)}
+                                          className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${isSelected ? 'bg-sky-500 text-white' : isDisabled ? 'bg-slate-100 text-slate-300 cursor-not-allowed' : 'bg-white border border-sky-200 text-slate-700 hover:bg-sky-50'}`}>
+                                          {formatTime(time)}
+                                          {isDisabled && !isSelected && <div className="text-[9px]">{err || '마감'}</div>}
+                                        </button>
+                                        {time === '12:00' && dateObj.getDay() !== 6 && (
+                                          <div className="col-span-2 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-xl text-slate-400 text-xs font-medium">
+                                            점심시간 12:30 ~ 1:30
+                                          </div>
+                                        )}
+                                      </React.Fragment>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => handleEditSave(res)} disabled={actionLoading === res.id || !editDate || !editTime}
+                          className="btn-success flex-1 text-sm py-2">
+                          {actionLoading === res.id ? '저장 중...' : '✓ 저장'}
+                        </button>
+                        <button onClick={() => setEditingId(null)} className="btn-secondary flex-1 text-sm py-2">취소</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 mb-3">
+                      {res.status !== 'done' && res.status !== 'paid' && (
+                        <>
+                          <button onClick={() => startEdit(res)}
+                            className="w-full py-1.5 rounded-xl text-xs font-semibold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200">
+                            📅 날짜/시간 변경
+                          </button>
+                          <button onClick={() => handleDelete(res.id)} disabled={actionLoading === res.id}
+                            className="w-full py-1.5 rounded-xl text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition-colors border border-red-200">
+                            {actionLoading === res.id ? '삭제 중...' : '🗑 예약 삭제'}
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 승인/거절 버튼 (승인대기 탭) */}
+                  {res.status === 'pending' && (
+                    <div className="flex gap-2">
+                      <button id={`approve-${res.id}`} onClick={() => handleAction(res.id, 'approved')} disabled={actionLoading === res.id}
+                        className="btn-success flex-1">
+                        {actionLoading === res.id ? '처리 중...' : '✓ 승인'}
+                      </button>
+                      <button id={`reject-${res.id}`} onClick={() => handleAction(res.id, 'rejected')} disabled={actionLoading === res.id}
+                        className="btn-danger flex-1">
+                        ✕ 거절
+                      </button>
+                    </div>
+                  )}
+                  {/* 치료 완료 처리 버튼 (치료확정 탭) */}
+                  {res.status === 'approved' && (
+                    <button id={`done-${res.id}`} onClick={() => handleAction(res.id, 'done')} disabled={actionLoading === res.id}
+                      className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold transition-colors">
+                      {actionLoading === res.id ? '처리 중...' : '치료 완료 처리'}
+                    </button>
+                  )}
+                  {res.status === 'rejected' && (
+                    <button onClick={() => handleAction(res.id, 'approved')} disabled={actionLoading === res.id}
+                      className="w-full py-2 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-sm font-semibold transition-colors mt-2">
+                      {actionLoading === res.id ? '처리 중...' : '↺ 다시 승인하기'}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
-  );
-}
-
-function StatCard({ label, value, color, highlight, active, onClick }: {
-  label: string; value: number; color: string; highlight?: boolean; active?: boolean; onClick?: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`card text-center py-4 w-full cursor-pointer transition-all hover:shadow-md
-        ${highlight ? 'border-2 border-amber-300 bg-amber-50' : ''}
-        ${active ? 'ring-2 ring-sky-400 shadow-md bg-sky-50' : ''}`}
-    >
-      <div className={`text-2xl font-extrabold ${color}`}>{value}</div>
-      <div className="text-xs text-slate-500 mt-1">{label}</div>
-      <div className="text-[10px] text-slate-400 mt-0.5">클릭하여 조회</div>
-    </button>
   );
 }
