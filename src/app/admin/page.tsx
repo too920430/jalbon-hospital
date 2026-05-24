@@ -1029,9 +1029,11 @@ export default function AdminPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-4">
                   <h2 className="font-bold text-slate-700 text-lg">전체 로그 기록</h2>
-                  <button onClick={handleDeleteLogsClick} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-3 py-1.5 rounded-lg transition-colors border border-red-200 flex flex-col items-center leading-tight">
-                    <span>🗑 현재</span>
-                    <span>내역 삭제</span>
+                  <button onClick={handleDeleteLogsClick} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-3 py-1.5 rounded-lg transition-colors border border-red-200 flex flex-col items-center leading-tight gap-0.5">
+                    <span className="text-sm">🗑</span>
+                    <span>현재</span>
+                    <span>내역</span>
+                    <span>삭제</span>
                   </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 bg-slate-50 p-1 rounded-xl gap-1 w-full">
