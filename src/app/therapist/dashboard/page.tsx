@@ -68,8 +68,6 @@ export default function TherapistDashboard() {
     setActionLoading(id);
     await updateReservationStatus(id, status, undefined, status === 'approved' ? therapist?.id : undefined);
     if (therapist) await loadReservations(therapist.id);
-    // 치료 완료 처리 후 전체 예약 탭으로 이동
-    if (status === 'done') setTab('all');
     setActionLoading(null);
   };
 

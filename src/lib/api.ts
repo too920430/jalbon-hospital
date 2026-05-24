@@ -426,6 +426,30 @@ export async function getAuditLogs(): Promise<AuditLog[]> {
   return (data || []) as AuditLog[];
 }
 
+export async function deleteAuditLogs(actionType?: string): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    if (actionType) {
+      const logs = getLocalAuditLogs().filter(l => l.action_type !== actionType);
+      localStorage.setItem('jalbon_audit_logs', JSON.stringify(logs));
+    } else {
+      localStorage.setItem('jalbon_audit_logs', JSON.stringify([]));
+    }
+    return true;
+  }
+
+  let query = supabase.from('audit_logs').delete();
+  if (actionType) {
+    query = query.eq('action_type', actionType);
+  } else {
+    // Supabase requires some filter to delete all rows unless configured otherwise.
+    // eq('id', id) is usually used, but we can do neq('id', '00000000-0000-0000-0000-000000000000') to delete all
+    query = query.neq('id', '00000000-0000-0000-0000-000000000000');
+  }
+  
+  const { error } = await query;
+  return !error;
+}
+
 function getLocalAuditLogs(): AuditLog[] {
   if (typeof window === 'undefined') return [];
   try {

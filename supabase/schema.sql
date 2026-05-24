@@ -87,3 +87,4 @@ create table if not exists audit_logs (
 alter table audit_logs enable row level security;
 create policy "audit_logs_insert" on audit_logs for insert with check (true);
 create policy "audit_logs_read" on audit_logs for select using (true);
+create policy "audit_logs_delete" on audit_logs for delete using (true);

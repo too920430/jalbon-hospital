@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist, AuditLog } from '@/lib/types';
-import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog } from '@/lib/api';
+import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
@@ -86,6 +86,26 @@ export default function AdminPage() {
     setLoading(false);
   };
 
+  const handleDeleteLogs = async () => {
+    const actionType = logFilter === 'all' ? undefined : logFilter;
+    const label = logFilter === 'all' ? '전체 로그' : {
+      'PATIENT_BOOKING': '환자 예약',
+      'THERAPIST_LOGIN': '치료사 로그인',
+      'RESERVATION_CANCELED': '예약 취소',
+      'TREATMENT_COMPLETED': '치료 완료',
+      'PAYMENT_COMPLETED': '수납 확정'
+    }[logFilter];
+    
+    if (!confirm(`정말로 [${label}] 기록을 모두 삭제하시겠습니까?\n(실제 데이터베이스에서 영구 삭제되며 복구할 수 없습니다)`)) return;
+    
+    const success = await deleteAuditLogs(actionType);
+    if (success) {
+      alert('삭제되었습니다.');
+      await loadData();
+    } else {
+      alert('로그 삭제 중 오류가 발생했습니다. 권한을 확인해주세요.');
+    }
+  };
 
 
   const logout = () => {
@@ -970,6 +990,15 @@ export default function AdminPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+              
+              <div className="flex justify-end px-2">
+                <button
+                  onClick={handleDeleteLogs}
+                  className="text-xs px-4 py-2 bg-red-50 text-red-600 font-bold rounded-xl border border-red-100 hover:bg-red-100 transition-colors flex items-center gap-1"
+                >
+                  🗑 현재 필터 로그 삭제
+                </button>
               </div>
               
               <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
