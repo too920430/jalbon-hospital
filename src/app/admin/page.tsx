@@ -1124,7 +1124,7 @@ export default function AdminPage() {
                           현재 상태
                           <select
                             value={patientStatusFilter}
-                            onChange={(e) => setPatientStatusFilter(e.target.value)}
+                            onChange={(e) => setPatientStatusFilter(e.target.value as any)}
                             className="text-xs border border-slate-200 rounded p-1 text-slate-600 bg-white font-normal"
                           >
                             <option value="all">전체</option>
