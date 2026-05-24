@@ -511,13 +511,6 @@ export default function AdminPage() {
             연간 치료사 통계
           </button>
           <button
-            onClick={() => setAdminTab('logs')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'logs' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            전체 로그
-          </button>
-          <button
             onClick={() => setAdminTab('patients')}
             className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
               ${adminTab === 'patients' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
@@ -530,6 +523,13 @@ export default function AdminPage() {
               ${adminTab === 'settlement' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
           >
             정산 관리
+          </button>
+          <button
+            onClick={() => setAdminTab('logs')}
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
+              ${adminTab === 'logs' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            전체 로그
           </button>
         </div>
 
