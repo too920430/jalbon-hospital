@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
-import { getTherapistReservations, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation } from '@/lib/api';
+import { getTherapistReservations, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getTherapistLeaves, insertTherapistLeave, deleteTherapistLeave } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, formatTherapistName, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
@@ -13,14 +13,16 @@ const STATUS_MAP = {
   rejected: { label: '거절됨',         color: 'bg-red-100 text-red-600'       },
   done:     { label: '수납 대기',      color: 'bg-blue-100 text-blue-600'     },
   paid:     { label: '수납/치료 완료', color: 'bg-slate-100 text-slate-600'   },
+  no_show:  { label: '노쇼', color: 'bg-rose-100 text-rose-700' },
 };
 
-type TabType = 'today' | 'pending' | 'approved' | 'all';
+type TabType = 'today' | 'pending' | 'approved' | 'all' | 'leaves';
 
 export default function TherapistDashboard() {
   const router = useRouter();
   const [therapist, setTherapist] = useState<Therapist | null>(null);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [leaves, setLeaves] = useState<import('@/lib/types').TherapistLeave[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabType>('today');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -38,6 +40,16 @@ export default function TherapistDashboard() {
   const [editTime, setEditTime] = useState('');
   const [editDuration, setEditDuration] = useState<30 | 50>(50);
   const [editSlotAvailability, setEditSlotAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
+
+  // 휴가 관리 폼 상태
+  const [leaveCalYear, setLeaveCalYear] = useState(new Date().getFullYear());
+  const [leaveCalMonth, setLeaveCalMonth] = useState(new Date().getMonth());
+  const [selectedLeaveDate, setSelectedLeaveDate] = useState<string | null>(null);
+  
+  const [leaveDate, setLeaveDate] = useState(toDateStr(new Date()));
+  const [leaveStartTime, setLeaveStartTime] = useState('09:00');
+  const [leaveEndTime, setLeaveEndTime] = useState('18:00');
+  const [leaveReason, setLeaveReason] = useState('');
 
   useEffect(() => {
     const stored = sessionStorage.getItem('jalbon_therapist');
@@ -61,6 +73,8 @@ export default function TherapistDashboard() {
     setLoading(true);
     const data = await getTherapistReservations(therapistId);
     setReservations(data);
+    const leavesData = await getTherapistLeaves();
+    setLeaves(leavesData.filter(l => l.therapist_id === therapistId));
     setLoading(false);
   };
 
@@ -119,7 +133,7 @@ export default function TherapistDashboard() {
   const allMonthStr = `${allYear}-${String(allMonth).padStart(2, '0')}`;
   const allMonthRes = reservations.filter(r => r.date.startsWith(allMonthStr));
 
-  const displayedMap: Record<TabType, Reservation[]> = {
+  const displayedMap: Partial<Record<TabType, Reservation[]>> = {
     today: todayRes,
     pending: pendingRes,
     approved: approvedRes,
@@ -161,13 +175,14 @@ export default function TherapistDashboard() {
 
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
 
-        {/* Tabs: 오늘 예약 / 승인대기 / 치료확정 / 전체 예약 */}
-        <div className="grid grid-cols-4 gap-2">
+        {/* Tabs: 오늘 예약 / 승인대기 / 치료확정 / 전체 예약 / 휴가 관리 */}
+        <div className="grid grid-cols-5 gap-2">
           {([
             { id: 'today',    label: '오늘 예약',  count: todayRes.length,    color: 'text-sky-600'   },
             { id: 'pending',  label: '예약 승인 대기', count: pendingRes.length,  color: 'text-amber-600' },
             { id: 'approved', label: '치료 완료',  count: approvedRes.length, color: 'text-emerald-600' },
             { id: 'all',      label: '전체 예약',  count: null,               color: 'text-slate-600' },
+            { id: 'leaves',   label: '휴가 관리',  count: leaves.length,      color: 'text-indigo-600' },
           ] as const).map(t => (
             <button
               key={t.id}
@@ -178,8 +193,10 @@ export default function TherapistDashboard() {
                   : `bg-white ${t.color} border border-slate-200 hover:border-sky-200`}
                 ${t.id === 'pending' && pendingRes.length > 0 && tab !== 'pending' ? 'border-amber-300 bg-amber-50' : ''}`}
             >
-              {t.count !== null && (
+              {t.count !== null ? (
                 <span className={`text-lg font-extrabold leading-none ${tab === t.id ? 'text-white' : t.color}`}>{t.count}</span>
+              ) : (
+                <span className="text-lg font-extrabold leading-none opacity-0 block h-[18px]">0</span>
               )}
               <span className={`leading-tight ${tab === t.id ? 'text-white' : 'text-slate-500'}`}>{t.label}</span>
             </button>
@@ -228,8 +245,140 @@ export default function TherapistDashboard() {
           </div>
         )}
 
+        {/* 휴가 관리 탭 (달력 UI) */}
+        {tab === 'leaves' && (() => {
+          const firstDay = new Date(leaveCalYear, leaveCalMonth, 1).getDay();
+          const daysInMonth = new Date(leaveCalYear, leaveCalMonth + 1, 0).getDate();
+          const calendarDays = [];
+          for (let i = 0; i < firstDay; i++) calendarDays.push(null);
+          for (let i = 1; i <= daysInMonth; i++) calendarDays.push(i);
+
+          return (
+            <div className="space-y-4 animate-fade-in-up">
+              <div className="card">
+                <div className="flex justify-between items-center mb-4">
+                  <button onClick={() => {
+                    if (leaveCalMonth === 0) { setLeaveCalYear(y => y-1); setLeaveCalMonth(11); }
+                    else setLeaveCalMonth(m => m-1);
+                  }} className="p-2 text-slate-400 hover:text-sky-500 font-bold">◀</button>
+                  <h2 className="font-bold text-lg text-slate-800">{leaveCalYear}년 {leaveCalMonth + 1}월 휴무 관리</h2>
+                  <button onClick={() => {
+                    if (leaveCalMonth === 11) { setLeaveCalYear(y => y+1); setLeaveCalMonth(0); }
+                    else setLeaveCalMonth(m => m+1);
+                  }} className="p-2 text-slate-400 hover:text-sky-500 font-bold">▶</button>
+                </div>
+                
+                <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                  {['일','월','화','수','목','금','토'].map((d, i) => (
+                    <div key={d} className={`text-xs font-bold py-2 ${i===0 ? 'text-rose-500' : i===6 ? 'text-blue-500' : 'text-slate-500'}`}>{d}</div>
+                  ))}
+                  {calendarDays.map((d, i) => {
+                    if (!d) return <div key={`empty-${i}`} className="p-2" />;
+                    const dateStr = `${leaveCalYear}-${String(leaveCalMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    const dayLeaves = leaves.filter(l => l.date === dateStr);
+                    const isToday = dateStr === toDateStr(new Date());
+                    return (
+                      <div key={d} onClick={() => { setLeaveDate(dateStr); setSelectedLeaveDate(dateStr); }}
+                           className={`min-h-[80px] border border-slate-100 rounded-xl p-1 cursor-pointer transition-colors relative flex flex-col items-center hover:border-sky-300 hover:shadow-sm ${isToday ? 'bg-sky-50/50 ring-1 ring-sky-200' : 'bg-white'}`}>
+                        <span className={`text-xs font-bold mt-1 ${i%7===0 ? 'text-rose-500' : i%7===6 ? 'text-blue-500' : 'text-slate-700'}`}>{d}</span>
+                        <div className="mt-1 w-full flex flex-col gap-1 px-0.5">
+                          {dayLeaves.map(l => (
+                            <div key={l.id} className="bg-indigo-100 text-indigo-700 text-[9px] px-1 py-0.5 rounded font-medium truncate" title={`${l.start_time}~${l.end_time}`}>
+                              {l.start_time.slice(0,5)}~{l.end_time.slice(0,5)}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {selectedLeaveDate && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+                  <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 animate-fade-in-up">
+                    <div className="flex justify-between items-center mb-2">
+                      <h3 className="font-bold text-slate-800 text-lg">{selectedLeaveDate.split('-')[1]}월 {selectedLeaveDate.split('-')[2]}일 휴무 등록</h3>
+                      <button onClick={() => setSelectedLeaveDate(null)} className="text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <label className="text-xs font-semibold text-slate-600 block mb-1">날짜</label>
+                        <input type="date" className="input-field" value={leaveDate} onChange={e => setLeaveDate(e.target.value)} />
+                      </div>
+                      <div className="col-span-2">
+                        <label className="text-xs font-semibold text-slate-600 block mb-1">사유</label>
+                        <input type="text" placeholder="연차, 반차, 병가 등" className="input-field" value={leaveReason} onChange={e => setLeaveReason(e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-600 block mb-1">시작 시간</label>
+                        <input type="time" className="input-field" value={leaveStartTime} onChange={e => setLeaveStartTime(e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-600 block mb-1">종료 시간</label>
+                        <input type="time" className="input-field" value={leaveEndTime} onChange={e => setLeaveEndTime(e.target.value)} />
+                      </div>
+                    </div>
+                    <button 
+                      className="btn-primary w-full mt-2 py-3"
+                      onClick={async () => {
+                        if (!therapist) return;
+                        if (leaveStartTime >= leaveEndTime) { alert('종료 시간은 시작 시간보다 늦어야 합니다.'); return; }
+                        setActionLoading('leave');
+                        const res = await insertTherapistLeave(therapist.id, leaveDate, leaveStartTime, leaveEndTime, leaveReason);
+                        if (res.success) {
+                          setLeaveReason('');
+                          setSelectedLeaveDate(null);
+                          await loadReservations(therapist.id);
+                        } else {
+                          alert('휴가 등록에 실패했습니다.');
+                        }
+                        setActionLoading(null);
+                      }}
+                      disabled={actionLoading === 'leave'}
+                    >
+                      {actionLoading === 'leave' ? '등록 중...' : '휴가 등록하기'}
+                    </button>
+                    
+                    {/* 해당 날짜의 기존 휴무 내역 리스트 */}
+                    {(() => {
+                      const existingLeaves = leaves.filter(l => l.date === leaveDate);
+                      if (existingLeaves.length > 0) {
+                        return (
+                          <div className="mt-4 pt-4 border-t border-slate-100 space-y-2">
+                            <h4 className="text-xs font-bold text-slate-500 mb-2">이 날짜의 등록된 휴무</h4>
+                            {existingLeaves.map(l => (
+                              <div key={l.id} className="bg-slate-50 p-2.5 rounded-xl flex justify-between items-center border border-slate-100">
+                                <div>
+                                  <div className="text-sm font-bold text-indigo-600">{l.start_time.slice(0,5)} ~ {l.end_time.slice(0,5)}</div>
+                                  <div className="text-[10px] text-slate-500 font-medium">{l.reason || '사유 없음'}</div>
+                                </div>
+                                <button onClick={async () => {
+                                  if(!confirm('휴무를 삭제하시겠습니까?')) return;
+                                  setActionLoading(`del-leave-${l.id}`);
+                                  const res = await deleteTherapistLeave(l.id);
+                                  if (res.success && therapist) await loadReservations(therapist.id);
+                                  setActionLoading(null);
+                                }} disabled={actionLoading === `del-leave-${l.id}`} className="text-rose-500 text-xs font-bold hover:bg-rose-50 px-3 py-1.5 rounded-lg transition-colors border border-rose-100 bg-white shadow-sm">
+                                  {actionLoading === `del-leave-${l.id}` ? '삭제 중...' : '삭제'}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         {/* 예약 목록 */}
-        {loading ? (
+        {tab !== 'leaves' && (
+          loading ? (
           <div className="card text-center py-12">
             <div className="text-4xl mb-3 animate-pulse-soft">⏳</div>
             <p className="text-slate-400">불러오는 중...</p>
@@ -406,6 +555,7 @@ export default function TherapistDashboard() {
               );
             })}
           </div>
+          )
         )}
       </div>
     </div>

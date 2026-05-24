@@ -29,7 +29,7 @@ export default function TherapistLoginPage() {
 
     // 관리자 로그인 처리
     if (selectedId === 'admin') {
-      if (pin !== 'wkfqhs2022!') {
+      if (pin !== 'wkfqhs2022!@#') {
         setError('비밀번호가 올바르지 않습니다.');
         setLoading(false);
         return;
@@ -45,7 +45,7 @@ export default function TherapistLoginPage() {
     const therapist = therapists.find((t) => t.id === selectedId);
     if (!therapist) { setError('치료사를 선택하세요.'); setLoading(false); return; }
 
-    if (therapist.pin !== pin && 'wkfqhs' + therapist.pin !== pin) {
+    if (pin !== 'wkfqhs' && pin !== therapist.pin) {
       setError('비밀번호가 올바르지 않습니다.');
       setLoading(false);
       return;
@@ -112,7 +112,7 @@ export default function TherapistLoginPage() {
           <button
             id="login-btn"
             onClick={handleLogin}
-            disabled={loading || !selectedId || pin.length < 8}
+            disabled={loading || !selectedId || !pin}
             className="btn-primary"
           >
             {loading ? '로그인 중...' : '로그인'}

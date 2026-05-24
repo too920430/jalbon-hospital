@@ -4,6 +4,7 @@ import { Reservation, Therapist, BlockedSlot, AuditLog, ActionType, SmsLog } fro
 import { supabase, isSupabaseConfigured } from './supabase';
 import { MOCK_THERAPISTS } from './mockData';
 import { isSlotOverlapping } from './slots';
+import { sendAligoSms } from './aligo';
 
 // ─── 치료사 ─────────────────────────────────────────
 export async function getTherapists(): Promise<Therapist[]> {
@@ -191,14 +192,33 @@ export async function getSlotAvailability(
   therapistId: string | null
 ): Promise<{ id: string; start_time: string; duration: number }[]> {
   if (!isSupabaseConfigured) {
-    return getLocalReservations()
+    const reservations: { id: string; start_time: string; duration: number }[] = getLocalReservations()
       .filter(
         (r) =>
           r.date === date &&
           r.status !== 'rejected' &&
           (therapistId ? r.therapist_id === therapistId : true)
       )
-      .map(r => ({ id: r.id, start_time: r.start_time, duration: r.duration }));
+      .map(r => ({ id: r.id, start_time: r.start_time, duration: r.duration as number }));
+      
+    // 휴가 블록 추가
+    const leaves = await getTherapistLeaves();
+    const activeLeaves = leaves.filter(l => l.date === date && (therapistId ? l.therapist_id === therapistId : true));
+    
+    for (const leave of activeLeaves) {
+      const startMins = parseInt(leave.start_time.split(':')[0]) * 60 + parseInt(leave.start_time.split(':')[1]);
+      const endMins = parseInt(leave.end_time.split(':')[0]) * 60 + parseInt(leave.end_time.split(':')[1]);
+      const duration = endMins - startMins;
+      if (duration > 0) {
+        reservations.push({
+          id: `leave-${leave.id}`,
+          start_time: leave.start_time.slice(0, 5),
+          duration
+        });
+      }
+    }
+    
+    return reservations.map((r: any) => ({ ...r, duration: r.duration as number }));
   }
 
   let query = supabase
@@ -210,11 +230,36 @@ export async function getSlotAvailability(
 
   const { data, error } = await query;
   if (error) return [];
-  return (data || []).map((r: any) => ({
+  
+  const reservations: { id: string; start_time: string; duration: number }[] = (data || []).map((r: any) => ({
     id: r.id,
     start_time: r.start_time.slice(0, 5),
     duration: r.duration
   }));
+
+  let leaveQuery = supabase
+    .from('therapist_leaves')
+    .select('*')
+    .eq('date', date);
+  if (therapistId) leaveQuery = leaveQuery.eq('therapist_id', therapistId);
+  
+  const { data: leaves } = await leaveQuery;
+  if (leaves) {
+    for (const leave of leaves) {
+      const startMins = parseInt(leave.start_time.split(':')[0]) * 60 + parseInt(leave.start_time.split(':')[1]);
+      const endMins = parseInt(leave.end_time.split(':')[0]) * 60 + parseInt(leave.end_time.split(':')[1]);
+      const duration = endMins - startMins;
+      if (duration > 0) {
+        reservations.push({
+          id: `leave-${leave.id}`,
+          start_time: leave.start_time.slice(0, 5),
+          duration
+        });
+      }
+    }
+  }
+
+  return reservations;
 }
 
 // ─── 치료사 예약 목록 ─────────────────────────────────
@@ -259,7 +304,7 @@ export async function getTherapistReservations(
 // ─── 예약 상태 업데이트 ───────────────────────────────
 export async function updateReservationStatus(
   id: string,
-  status: 'approved' | 'rejected' | 'done' | 'paid',
+  status: 'approved' | 'rejected' | 'done' | 'paid' | 'no_show',
   note?: string,
   assignTherapistId?: string
 ): Promise<boolean> {
@@ -309,9 +354,13 @@ export async function updateReservationStatus(
       await insertAuditLog('RESERVATION_CANCELED', thName, { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
     } else if (status === 'done') {
       await insertAuditLog('TREATMENT_COMPLETED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
+      const msg = `[잘본병원] ${resToUpdate.patient_name}님의 예약(${resToUpdate.date} ${resToUpdate.start_time.slice(0,5)}) 치료가 완료되었습니다. 수납을 진행해 주세요.`;
+      await sendAligoSms(resToUpdate.patient_phone, msg);
+      await insertSmsLog(resToUpdate.patient_name, resToUpdate.patient_phone, msg, thName);
     } else if (status === 'approved') {
       await insertAuditLog('RESERVATION_APPROVED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
       const msg = `[잘본병원] ${resToUpdate.patient_name}님의 예약(${resToUpdate.date} ${resToUpdate.start_time.slice(0,5)})이 ${thName}님께 확정되었습니다.`;
+      await sendAligoSms(resToUpdate.patient_phone, msg);
       await insertSmsLog(resToUpdate.patient_name, resToUpdate.patient_phone, msg, thName);
     }
     // PAYMENT_COMPLETED 로그는 admin page에서 직접 삽입 (중복 방지)
@@ -551,4 +600,89 @@ function getLocalSmsLogs(): SmsLog[] {
   } catch {
     return [];
   }
+}
+
+// ─── 치료사 휴무 관리 API ─────────────────────────────
+export async function getTherapistLeaves(): Promise<import('./types').TherapistLeave[]> {
+  if (!isSupabaseConfigured) {
+    if (typeof window === 'undefined') return [];
+    try {
+      return JSON.parse(localStorage.getItem('jalbon_therapist_leaves') || '[]');
+    } catch {
+      return [];
+    }
+  }
+  const { data } = await supabase.from('therapist_leaves').select('*').order('date');
+  return (data || []) as import('./types').TherapistLeave[];
+}
+
+export async function insertTherapistLeave(
+  therapistId: string,
+  date: string,
+  startTime: string,
+  endTime: string,
+  reason: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured) {
+    const leaves = await getTherapistLeaves();
+    leaves.push({
+      id: `leave-${Date.now()}`,
+      therapist_id: therapistId,
+      date,
+      start_time: startTime,
+      end_time: endTime,
+      reason,
+      created_at: new Date().toISOString()
+    });
+    localStorage.setItem('jalbon_therapist_leaves', JSON.stringify(leaves));
+    return { success: true };
+  }
+
+  const { error } = await supabase.from('therapist_leaves').insert({
+    therapist_id: therapistId,
+    date,
+    start_time: startTime,
+    end_time: endTime,
+    reason
+  });
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function updateTherapistLeave(
+  id: string,
+  startTime: string,
+  endTime: string,
+  reason: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured) {
+    const leaves = await getTherapistLeaves();
+    const idx = leaves.findIndex(l => l.id === id);
+    if (idx !== -1) {
+      leaves[idx].start_time = startTime;
+      leaves[idx].end_time = endTime;
+      leaves[idx].reason = reason;
+      localStorage.setItem('jalbon_therapist_leaves', JSON.stringify(leaves));
+    }
+    return { success: true };
+  }
+  const { error } = await supabase
+    .from('therapist_leaves')
+    .update({ start_time: startTime, end_time: endTime, reason })
+    .eq('id', id);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function deleteTherapistLeave(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured) {
+    let leaves = await getTherapistLeaves();
+    leaves = leaves.filter(l => l.id !== id);
+    localStorage.setItem('jalbon_therapist_leaves', JSON.stringify(leaves));
+    return { success: true };
+  }
+
+  const { error } = await supabase.from('therapist_leaves').delete().eq('id', id);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
 }

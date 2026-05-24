@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist, AuditLog, SmsLog } from '@/lib/types';
-import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs } from '@/lib/api';
+import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs, getTherapistLeaves, insertTherapistLeave, updateTherapistLeave, deleteTherapistLeave } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const STATUS_MAP = {
   pending:  { label: '승인 대기', color: 'bg-amber-100 text-amber-700' },
@@ -13,6 +14,7 @@ const STATUS_MAP = {
   rejected: { label: '거절됨',   color: 'bg-red-100 text-red-600'      },
   done:     { label: '수납 대기', color: 'bg-blue-100 text-blue-600'  },
   paid:     { label: '수납/치료 완료', color: 'bg-slate-100 text-slate-600' },
+  no_show:  { label: '노쇼 (예약부도)', color: 'bg-rose-100 text-rose-700' },
 };
 
 export default function AdminPage() {
@@ -41,7 +43,7 @@ export default function AdminPage() {
   const [editSlotAvailability, setEditSlotAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
 
   // Tabs & Dates
-  const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly' | 'logs' | 'patients' | 'settlement' | 'sms'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly' | 'logs' | 'patients' | 'settlement' | 'sms' | 'leaves'>('overview');
 
   const downloadCSV = (data: any[], filename: string) => {
     if (data.length === 0) {
@@ -106,8 +108,25 @@ export default function AdminPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [smsLogs, setSmsLogs] = useState<SmsLog[]>([]);
   const [logFilter, setLogFilter] = useState<'all' | 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED'>('all');
+  const [leaves, setLeaves] = useState<import('@/lib/types').TherapistLeave[]>([]);
+  
+  // 휴무 관리 폼 상태
+  const [leaveTherapistId, setLeaveTherapistId] = useState<string>('');
+  const [leaveDate, setLeaveDate] = useState(toDateStr(new Date()));
+  const [leaveStartTime, setLeaveStartTime] = useState('09:00');
+  const [leaveEndTime, setLeaveEndTime] = useState('18:00');
+  const [leaveReason, setLeaveReason] = useState('');
+  const [leaveLoading, setLeaveLoading] = useState<string | null>(null);
 
   const [pickerType, setPickerType] = useState<'list' | 'monthly' | 'settlement' | null>(null);
+
+  // 휴무 관리 달력 상태
+  const [leavesCalYear, setLeavesCalYear] = useState(new Date().getFullYear());
+  const [leavesCalMonth, setLeavesCalMonth] = useState(new Date().getMonth());
+  const [editingLeave, setEditingLeave] = useState<import('@/lib/types').TherapistLeave | null>(null);
+  const [editLeaveStart, setEditLeaveStart] = useState('');
+  const [editLeaveEnd, setEditLeaveEnd] = useState('');
+  const [editLeaveReason, setEditLeaveReason] = useState('');
   useEffect(() => {
     const role = sessionStorage.getItem('jalbon_role');
     if (role !== 'admin') {
@@ -120,11 +139,12 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [res, ths, logs, sms] = await Promise.all([getAllReservations(), getTherapists(), getAuditLogs(), getSmsLogs()]);
+    const [res, ths, logs, sms, lvs] = await Promise.all([getAllReservations(), getTherapists(), getAuditLogs(), getSmsLogs(), getTherapistLeaves()]);
     setReservations(res);
     setTherapists(ths);
     setAuditLogs(logs);
     setSmsLogs(sms);
+    setLeaves(lvs);
     setLoading(false);
   };
 
@@ -145,7 +165,7 @@ export default function AdminPage() {
 
   const confirmLogDelete = async () => {
     if (!logDeleteTarget) return;
-    if (logDeletePassword !== 'wkfqhs2022!') {
+    if (logDeletePassword !== 'wkfqhs2022!@#') {
       alert('비밀번호가 일치하지 않습니다.');
       return;
     }
@@ -356,6 +376,7 @@ export default function AdminPage() {
     const totalCount = resList.length;
     const paidCount = resList.filter(r => r.status === 'paid' || r.status === 'done').length;
     const cancelCount = resList.filter(r => r.status === 'rejected').length;
+    const noShowCount = resList.filter(r => r.status === 'no_show').length;
     
     // 주 담당 치료사 계산 (수납대기/수납완료 건수만 기준, 최신순 우선)
     const validRes = sorted.filter(r => r.status === 'paid' || r.status === 'done');
@@ -376,6 +397,7 @@ export default function AdminPage() {
       totalCount,
       paidCount,
       cancelCount,
+      noShowCount,
       latestDate: latest.date,
       latestStatus: latest.status,
       allVisits: resList.filter(r => r.status === 'paid' || r.status === 'done').sort((a, b) => new Date(b.date + ' ' + b.start_time).getTime() - new Date(a.date + ' ' + a.start_time).getTime()),
@@ -632,6 +654,13 @@ export default function AdminPage() {
             정산 관리
           </button>
           <button
+            onClick={() => setAdminTab('logs')}
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
+              ${adminTab === 'logs' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            전체 로그
+          </button>
+          <button
             onClick={() => setAdminTab('sms')}
             className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
               ${adminTab === 'sms' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
@@ -639,11 +668,11 @@ export default function AdminPage() {
             알리고 알림내역
           </button>
           <button
-            onClick={() => setAdminTab('logs')}
+            onClick={() => setAdminTab('leaves')}
             className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'logs' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+              ${adminTab === 'leaves' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
           >
-            전체 로그
+            휴무 관리
           </button>
         </div>
 
@@ -669,10 +698,33 @@ export default function AdminPage() {
             <div className="card">
               <h2 className="font-bold text-slate-700 mb-3">치료사별 현황 (이번 달)</h2>
               <p className="text-xs text-slate-500 mb-4">치료사를 클릭하여 해당 치료사의 예약만 필터링하거나 더블 클릭하여 전체 리스트로 돌아갈 수 있습니다.</p>
+              
+              <div className="mb-6 h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={therapistStats.filter(t => t.thisMonth > 0)}
+                      dataKey="thisMonth"
+                      nameKey="therapist.name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                    >
+                      {therapistStats.filter(t => t.thisMonth > 0).map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.therapist.color || '#94a3b8'} />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 {therapistStats.map(({ therapist: t, thisMonth, total }) => (
                   <div key={t.id} 
-                       onClick={() => { setFilterTherapist(t.id); setFilterDateMode('month'); setFilterStatus(''); }}
+                       onClick={() => { setFilterTherapist(t.id); setFilterDateMode('month'); setFilterStatus(''); setListMonth(currentMonthString); }}
                        onDoubleClick={() => setFilterTherapist('')}
                        className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-colors border ${filterTherapist === t.id ? 'border-sky-400 bg-sky-50 shadow-sm' : 'border-transparent bg-slate-50 hover:bg-slate-100'}`}>
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold"
@@ -722,6 +774,7 @@ export default function AdminPage() {
                         type="date" 
                         value={listDate} 
                         onChange={(e) => setListDate(e.target.value)}
+                        onClick={(e) => { try { (e.target as HTMLInputElement).showPicker(); } catch(e) {} }}
                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                       />
                     </div>
@@ -831,6 +884,21 @@ export default function AdminPage() {
                                   >
                                     📅 수정
                                   </button>
+                                  {(res.status === 'pending' || res.status === 'approved') && (
+                                    <button
+                                      onClick={() => {
+                                        if (confirm('이 예약을 노쇼 처리하시겠습니까?')) {
+                                          updateReservationStatus(res.id, 'no_show').then(success => {
+                                            if (success) loadData();
+                                            else alert('상태 변경 중 오류가 발생했습니다.');
+                                          });
+                                        }
+                                      }}
+                                      className="text-xs text-rose-600 font-semibold px-2 py-1 rounded-lg border border-rose-200 hover:bg-rose-50 transition-colors"
+                                    >
+                                      노쇼
+                                    </button>
+                                  )}
                                   {res.status === 'done' && (
                                     <button
                                       onClick={async () => {
@@ -958,6 +1026,39 @@ export default function AdminPage() {
                 }
                 return null;
               })()}
+            </div>
+
+            {/* Monthly Trend Chart */}
+            <div className="card p-4">
+              <h3 className="font-bold text-slate-700 mb-4">월간 예약 추이</h3>
+              <div className="h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart
+                    data={days.filter(d => d !== null).map(day => {
+                      const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      let dayRes = monthlyReservations.filter(r => r.date === dateStr && r.status !== 'rejected');
+                      if (selectedTherapistId) {
+                        dayRes = selectedTherapistId === 'unassigned' 
+                          ? dayRes.filter(r => r.therapist_id === null)
+                          : dayRes.filter(r => r.therapist_id === selectedTherapistId);
+                      }
+                      return {
+                        day: `${day}일`,
+                        건수: dayRes.length,
+                        신환: dayRes.filter(r => reservations.filter(past => past.patient_phone === r.patient_phone && past.status !== 'rejected' && (past.date + ' ' + past.start_time) < (r.date + ' ' + r.start_time)).length === 0).length,
+                        재진: dayRes.filter(r => reservations.filter(past => past.patient_phone === r.patient_phone && past.status !== 'rejected' && (past.date + ' ' + past.start_time) < (r.date + ' ' + r.start_time)).length > 0).length
+                      };
+                    })}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} allowDecimals={false} />
+                    <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                    <Line type="monotone" dataKey="건수" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 3, fill: '#0ea5e9', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 5 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
             <div className="card p-4">
@@ -1235,6 +1336,7 @@ export default function AdminPage() {
                 <table className="w-full text-left border-collapse min-w-[600px]">
                   <thead>
                     <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
+                      <th className="p-4 font-semibold text-center w-12">No.</th>
                       <th className="p-4 font-semibold">환자명 (전화번호)</th>
                       <th className="p-4 font-semibold text-center">방문 현황</th>
                       <th className="p-4 font-semibold text-center">
@@ -1265,6 +1367,7 @@ export default function AdminPage() {
                             <option value="done">수납 대기</option>
                             <option value="paid">수납/치료 완료</option>
                             <option value="rejected">거절됨</option>
+                            <option value="no_show">노쇼</option>
                           </select>
                         </div>
                       </th>
@@ -1289,10 +1392,16 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="text-sm divide-y divide-slate-50">
-                    {patientsList.map(p => (
+                    {patientsList.map((p, i) => (
                       <tr key={p.phone} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-4 text-center font-bold text-slate-400">{i + 1}</td>
                         <td className="p-4">
-                          <div className="font-bold text-slate-800">{p.name}</div>
+                          <div className="font-bold text-slate-800 flex items-center gap-2">
+                            {p.name}
+                            {p.noShowCount >= 2 && (
+                              <span className="bg-rose-100 text-rose-700 text-[10px] px-1.5 py-0.5 rounded font-bold" title="누적 노쇼 2회 이상">🚨 요주의</span>
+                            )}
+                          </div>
                           <div className="text-xs text-slate-500">{p.phone}</div>
                         </td>
                         <td className="p-4 text-center">
@@ -1338,7 +1447,7 @@ export default function AdminPage() {
                     ))}
                     {patientsList.length === 0 && (
                       <tr>
-                        <td colSpan={7} className="p-8 text-center text-slate-400">
+                        <td colSpan={8} className="p-8 text-center text-slate-400">
                           검색 결과가 없습니다.
                         </td>
                       </tr>
@@ -1353,7 +1462,7 @@ export default function AdminPage() {
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
                 <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 animate-fade-in-up">
                   <h3 className="font-bold text-slate-800 text-lg">비밀번호 강제 변경</h3>
-                  <p className="text-sm text-slate-500">환자 <strong>{pinChangePatient.name} {pinChangePatient.phone}</strong>의 비밀번호를 새로 설정합니다.</p>
+                  <p className="text-sm text-slate-500"><strong>{pinChangePatient.name}</strong> 환자 <strong>{pinChangePatient.phone}</strong>의 비밀번호를 새로 설정합니다.</p>
                   <div>
                     <label className="text-xs font-semibold text-slate-600 mb-1.5 block">새로운 PIN (4자리 숫자)</label>
                     <input
@@ -1739,6 +1848,253 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* =========================================================================
+          탭 8: 휴무 관리
+      ========================================================================= */}
+      {adminTab === 'leaves' && (() => {
+        const lcFirstDay = new Date(leavesCalYear, leavesCalMonth, 1).getDay();
+        const lcDaysInMonth = new Date(leavesCalYear, leavesCalMonth + 1, 0).getDate();
+        const lcDays: (number | null)[] = [];
+        for (let i = 0; i < lcFirstDay; i++) lcDays.push(null);
+        for (let i = 1; i <= lcDaysInMonth; i++) lcDays.push(i);
+        const lcMonthStr = `${leavesCalYear}-${String(leavesCalMonth + 1).padStart(2, '0')}`;
+        const lcLeaves = leaves.filter(l => l.date.startsWith(lcMonthStr));
+
+        return (
+        <div className="space-y-6 animate-fade-in-up">
+          <h2 className="text-xl font-bold text-slate-800">휴무 관리</h2>
+
+          {/* 달력 뷰 */}
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <button onClick={() => {
+                if (leavesCalMonth === 0) { setLeavesCalYear(y => y - 1); setLeavesCalMonth(11); }
+                else setLeavesCalMonth(m => m - 1);
+              }} className="p-2 text-slate-400 hover:text-sky-500 font-bold text-lg transition-colors">◀</button>
+              <h3 className="font-bold text-lg text-slate-800">{leavesCalYear}년 {leavesCalMonth + 1}월 휴무 현황</h3>
+              <button onClick={() => {
+                if (leavesCalMonth === 11) { setLeavesCalYear(y => y + 1); setLeavesCalMonth(0); }
+                else setLeavesCalMonth(m => m + 1);
+              }} className="p-2 text-slate-400 hover:text-sky-500 font-bold text-lg transition-colors">▶</button>
+            </div>
+
+            {/* 치료사 범례 */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {therapists.map(t => (
+                <span key={t.id} className="flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg"
+                      style={{ backgroundColor: t.color + '22', color: t.color }}>
+                  <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: t.color }} />
+                  {t.name}
+                </span>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-1 text-center mb-1">
+              {['일','월','화','수','목','금','토'].map((d, i) => (
+                <div key={d} className={`text-xs font-bold py-1.5 ${i === 0 ? 'text-rose-500' : i === 6 ? 'text-blue-500' : 'text-slate-500'}`}>{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {lcDays.map((d, i) => {
+                if (!d) return <div key={`e-${i}`} className="min-h-[80px] rounded-xl bg-slate-50/50" />;
+                const dateStr = `${leavesCalYear}-${String(leavesCalMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const dayLeaves = lcLeaves.filter(l => l.date === dateStr);
+                const isToday = dateStr === today;
+                return (
+                  <div key={d} className={`min-h-[80px] border rounded-xl p-1 flex flex-col transition-colors ${isToday ? 'border-sky-300 bg-sky-50/50' : 'border-slate-100 bg-white'}`}>
+                    <span className={`text-xs font-bold ${i % 7 === 0 ? 'text-rose-500' : i % 7 === 6 ? 'text-blue-500' : 'text-slate-600'}`}>{d}</span>
+                    <div className="mt-1 flex flex-col gap-0.5">
+                      {dayLeaves.map(l => {
+                        const th = therapists.find(t => t.id === l.therapist_id);
+                        return (
+                          <button key={l.id}
+                            onClick={() => { setEditingLeave(l); setEditLeaveStart(l.start_time.slice(0,5)); setEditLeaveEnd(l.end_time.slice(0,5)); setEditLeaveReason(l.reason || ''); }}
+                            className="text-[9px] font-bold px-1 py-0.5 rounded truncate text-left hover:opacity-80 transition-opacity"
+                            style={{ backgroundColor: (th?.color || '#94a3b8') + '33', color: th?.color || '#64748b' }}
+                            title={`${th?.name} ${l.start_time.slice(0,5)}~${l.end_time.slice(0,5)} ${l.reason || ''}`}
+                          >
+                            {th?.name?.split(' ')[0]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-slate-400 text-center mt-3">달력의 치료사 태그를 클릭하면 수정할 수 있습니다.</p>
+          </div>
+
+          {/* 새 휴무 등록 폼 */}
+          <div className="card space-y-4">
+            <h3 className="font-bold text-slate-700">새 휴무 등록</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div className="md:col-span-1">
+                <label className="text-xs font-semibold text-slate-600 block mb-1">치료사</label>
+                <select className="input-field" value={leaveTherapistId} onChange={e => setLeaveTherapistId(e.target.value)}>
+                  <option value="">치료사 선택</option>
+                  {therapists.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div className="md:col-span-1">
+                <label className="text-xs font-semibold text-slate-600 block mb-1">날짜</label>
+                <input type="date" className="input-field" value={leaveDate} onChange={e => setLeaveDate(e.target.value)} />
+              </div>
+              <div className="md:col-span-1">
+                <label className="text-xs font-semibold text-slate-600 block mb-1">시작 시간</label>
+                <input type="time" className="input-field" value={leaveStartTime} onChange={e => setLeaveStartTime(e.target.value)} />
+              </div>
+              <div className="md:col-span-1">
+                <label className="text-xs font-semibold text-slate-600 block mb-1">종료 시간</label>
+                <input type="time" className="input-field" value={leaveEndTime} onChange={e => setLeaveEndTime(e.target.value)} />
+              </div>
+              <div className="md:col-span-1">
+                <label className="text-xs font-semibold text-slate-600 block mb-1">사유</label>
+                <input type="text" placeholder="사유 (선택)" className="input-field" value={leaveReason} onChange={e => setLeaveReason(e.target.value)} />
+              </div>
+            </div>
+            <button
+              className="btn-primary w-full"
+              onClick={async () => {
+                if (!leaveTherapistId) return alert('치료사를 선택하세요.');
+                if (leaveStartTime >= leaveEndTime) return alert('종료 시간은 시작 시간보다 늦어야 합니다.');
+                setLeaveLoading('create');
+                const res = await insertTherapistLeave(leaveTherapistId, leaveDate, leaveStartTime, leaveEndTime, leaveReason);
+                if (res.success) {
+                  setLeaveReason('');
+                  await loadData();
+                } else {
+                  alert('휴무 등록에 실패했습니다.');
+                }
+                setLeaveLoading(null);
+              }}
+              disabled={leaveLoading === 'create'}
+            >
+              {leaveLoading === 'create' ? '등록 중...' : '휴무 등록하기'}
+            </button>
+          </div>
+
+          {/* 전체 목록 */}
+          <div className="card p-0 overflow-hidden">
+            <div className="p-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-700">전체 휴무 목록</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[600px]">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
+                    <th className="p-4 font-semibold text-center">치료사</th>
+                    <th className="p-4 font-semibold text-center">날짜</th>
+                    <th className="p-4 font-semibold text-center">시간</th>
+                    <th className="p-4 font-semibold">사유</th>
+                    <th className="p-4 font-semibold text-center">관리</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm divide-y divide-slate-50">
+                  {leaves.length === 0 && (
+                    <tr><td colSpan={5} className="p-8 text-center text-slate-400">등록된 휴무가 없습니다.</td></tr>
+                  )}
+                  {[...leaves].sort((a, b) => b.date.localeCompare(a.date)).map(leave => {
+                    const th = therapists.find(t => t.id === leave.therapist_id);
+                    return (
+                      <tr key={leave.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="p-4 text-center">
+                          <span className="flex items-center justify-center gap-1.5 font-bold text-slate-800">
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: th?.color }} />
+                            {th?.name || '알 수 없음'}
+                          </span>
+                        </td>
+                        <td className="p-4 text-center text-slate-600">{formatDate(leave.date)}</td>
+                        <td className="p-4 text-center text-slate-600 font-mono text-xs">{leave.start_time.slice(0,5)} ~ {leave.end_time.slice(0,5)}</td>
+                        <td className="p-4 text-slate-600">{leave.reason || '-'}</td>
+                        <td className="p-4 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => { setEditingLeave(leave); setEditLeaveStart(leave.start_time.slice(0,5)); setEditLeaveEnd(leave.end_time.slice(0,5)); setEditLeaveReason(leave.reason || ''); }}
+                              className="text-xs text-sky-600 hover:text-sky-800 font-bold px-2 py-1 rounded-lg border border-sky-200 hover:bg-sky-50 transition-colors"
+                            >수정</button>
+                            <button
+                              onClick={async () => {
+                                if (!confirm('이 휴무를 삭제하시겠습니까?')) return;
+                                setLeaveLoading(leave.id);
+                                await deleteTherapistLeave(leave.id);
+                                await loadData();
+                                setLeaveLoading(null);
+                              }}
+                              disabled={leaveLoading === leave.id}
+                              className="text-xs text-rose-600 hover:text-rose-800 font-bold px-2 py-1 rounded-lg border border-rose-200 hover:bg-rose-50 transition-colors"
+                            >
+                              {leaveLoading === leave.id ? '삭제 중...' : '삭제'}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* 휴무 수정 모달 */}
+          {editingLeave && (() => {
+            const th = therapists.find(t => t.id === editingLeave.therapist_id);
+            return (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+                <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 animate-fade-in-up">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="font-bold text-slate-800 text-lg">휴무 수정</h3>
+                      <p className="text-sm text-slate-500 mt-0.5">
+                        <span className="font-semibold" style={{ color: th?.color }}>{th?.name}</span> · {formatDate(editingLeave.date)}
+                      </p>
+                    </div>
+                    <button onClick={() => setEditingLeave(null)} className="text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 block mb-1">시작 시간</label>
+                      <input type="time" className="input-field" value={editLeaveStart} onChange={e => setEditLeaveStart(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-slate-600 block mb-1">종료 시간</label>
+                      <input type="time" className="input-field" value={editLeaveEnd} onChange={e => setEditLeaveEnd(e.target.value)} />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs font-semibold text-slate-600 block mb-1">사유</label>
+                      <input type="text" className="input-field" placeholder="사유 (선택)" value={editLeaveReason} onChange={e => setEditLeaveReason(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      className="btn-primary flex-1"
+                      disabled={leaveLoading === 'edit'}
+                      onClick={async () => {
+                        if (editLeaveStart >= editLeaveEnd) return alert('종료 시간은 시작 시간보다 늦어야 합니다.');
+                        setLeaveLoading('edit');
+                        const res = await updateTherapistLeave(editingLeave.id, editLeaveStart, editLeaveEnd, editLeaveReason);
+                        if (res.success) {
+                          setEditingLeave(null);
+                          await loadData();
+                        } else {
+                          alert('수정에 실패했습니다.');
+                        }
+                        setLeaveLoading(null);
+                      }}
+                    >
+                      {leaveLoading === 'edit' ? '저장 중...' : '✓ 저장'}
+                    </button>
+                    <button onClick={() => setEditingLeave(null)} className="btn-secondary flex-1">취소</button>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+        );
+      })()}
+
     </div>
   );
 }

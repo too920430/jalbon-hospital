@@ -17,7 +17,7 @@ export interface Reservation {
   date: string;
   start_time: string;
   duration: 30 | 50;
-  status: 'pending' | 'approved' | 'rejected' | 'done' | 'paid';
+  status: 'pending' | 'approved' | 'rejected' | 'done' | 'paid' | 'no_show';
   note?: string;
   created_at: string;
 }
@@ -66,3 +66,14 @@ export interface SmsLog {
   status: string;
   created_at: string;
 }
+
+export interface TherapistLeave {
+  id: string;
+  therapist_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  reason?: string;
+  created_at: string;
+}
+

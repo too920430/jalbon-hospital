@@ -12,6 +12,7 @@ const STATUS_MAP = {
   rejected: { label: '거절됨',   color: 'bg-red-100 text-red-600'      },
   done:     { label: '치료 완료', color: 'bg-slate-100 text-slate-600'  },
   paid:     { label: '치료 완료', color: 'bg-slate-100 text-slate-600'  },
+  no_show:  { label: '노쇼', color: 'bg-rose-100 text-rose-700' },
 };
 
 export default function MyBookingPage() {

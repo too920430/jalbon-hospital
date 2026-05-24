@@ -1,0 +1,19 @@
+
+> jalbon-hospital@0.1.0 dev
+> next dev
+
+⚠ Port 3000 is in use by process 46428, using available port 3001 instead.
+▲ Next.js 16.2.6 (Turbopack)
+- Local:         http://localhost:3001
+- Network:       http://192.168.200.187:3001
+- Environments: .env.local
+✓ Ready in 573ms
+⨯ Another next dev server is already running.
+
+- Local:        http://localhost:3000
+- PID:          46428
+- Dir:          C:\Users\Microsoft\Documents\Claude\jalbon-hospital
+- Log:          .next\dev\logs\next-development.log
+
+Run taskkill /PID 46428 /F to stop it.
+[?25h
