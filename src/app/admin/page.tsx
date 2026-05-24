@@ -763,7 +763,8 @@ export default function AdminPage() {
                     { id: 'all', label: '전체보기' },
                     { id: 'PATIENT_BOOKING', label: '환자 예약' },
                     { id: 'THERAPIST_LOGIN', label: '치료사 로그인' },
-                    { id: 'RESERVATION_CANCELED', label: '예약 취소' }
+                    { id: 'RESERVATION_CANCELED', label: '예약 취소' },
+                    { id: 'TREATMENT_COMPLETED', label: '치료 완료' }
                   ].map(f => (
                     <button
                       key={f.id}
@@ -808,6 +809,11 @@ export default function AdminPage() {
                       bgColor = 'bg-red-50';
                       title = '예약 취소 (거절/삭제)';
                       desc = `${log.actor_name}님이 ${log.details?.patientName || ''} 환자의 예약(${log.details?.date || ''} ${log.details?.time?.slice(0,5) || ''})을 취소했습니다. (사유: ${log.details?.reason || ''})`;
+                    } else if (log.action_type === 'TREATMENT_COMPLETED') {
+                      icon = '✅';
+                      bgColor = 'bg-blue-50';
+                      title = '치료 완료';
+                      desc = `${log.actor_name}님이 ${log.details?.patientName || ''} 환자의 예약(${log.details?.date || ''} ${log.details?.time?.slice(0,5) || ''})을 완료 처리했습니다.`;
                     }
                     
                     return (

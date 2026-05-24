@@ -38,8 +38,7 @@ export interface BookingFormData {
   date: string | null;
   startTime: string | null;
 }
-
-export type ActionType = 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED';
+export type ActionType = 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED' | 'TREATMENT_COMPLETED';
 
 export interface AuditLog {
   id: string;

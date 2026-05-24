@@ -176,6 +176,8 @@ export async function updateReservationStatus(
       localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
       if (status === 'rejected') {
         insertAuditLog('RESERVATION_CANCELED', '치료사', { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
+      } else if (status === 'done') {
+        insertAuditLog('TREATMENT_COMPLETED', '치료사', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
       }
     }
     return true;
@@ -189,9 +191,13 @@ export async function updateReservationStatus(
     .update({ status, note })
     .eq('id', id);
     
-  if (!error && status === 'rejected' && resToUpdate) {
+  if (!error && resToUpdate) {
     const thName = resToUpdate.therapist?.name || '치료사';
-    insertAuditLog('RESERVATION_CANCELED', thName, { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
+    if (status === 'rejected') {
+      insertAuditLog('RESERVATION_CANCELED', thName, { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
+    } else if (status === 'done') {
+      insertAuditLog('TREATMENT_COMPLETED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
+    }
   }
   return !error;
 }
