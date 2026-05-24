@@ -284,8 +284,9 @@ export default function AdminPage() {
     const paidCount = resList.filter(r => r.status === 'paid' || r.status === 'done').length;
     const cancelCount = resList.filter(r => r.status === 'rejected').length;
     
-    // 주 담당 치료사 계산
-    const thCounts = resList.reduce((acc, r) => {
+    // 주 담당 치료사 계산 (수납대기/수납완료 건수만 기준, 최신순 우선)
+    const validRes = sorted.filter(r => r.status === 'paid' || r.status === 'done');
+    const thCounts = validRes.reduce((acc, r) => {
       if (r.therapist_id) acc[r.therapist_id] = (acc[r.therapist_id] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
