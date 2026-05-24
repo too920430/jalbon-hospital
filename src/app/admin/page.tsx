@@ -1024,6 +1024,77 @@ export default function AdminPage() {
         )}
 
         {/* =========================================================================
+            TAB: YEARLY
+            ========================================================================= */}
+        {adminTab === 'yearly' && (
+          <div className="space-y-6 animate-fade-in-up">
+            <div className="card flex items-center justify-between px-6">
+              <button onClick={prevYear} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors">◀</button>
+              <h2 className="font-extrabold text-2xl text-slate-700">{currentYear}년</h2>
+              <button onClick={nextYear} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors">▶</button>
+            </div>
+
+            <div className="card p-0 overflow-hidden">
+              <div className="p-4 border-b border-slate-100">
+                <h3 className="font-bold text-slate-700">치료사별 월별 세부 통계</h3>
+                <p className="text-xs text-slate-500 mt-1">각 월별 예약 건수와 연간 총합을 확인할 수 있습니다.</p>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[800px] text-center">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                      <th className="py-3 px-4 text-left font-semibold w-40">치료사</th>
+                      {Array.from({length: 12}).map((_, i) => (
+                        <th key={i} className="py-3 w-10 font-semibold">{i+1}월</th>
+                      ))}
+                      <th className="py-3 px-4 text-sky-600 font-bold w-20">합계</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {yearlyTherapistStats.map(stat => (
+                      <tr key={stat.therapist.id} className="hover:bg-sky-50/50 transition-colors">
+                        <td className="py-3 px-4 text-left">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[11px] font-bold shadow-sm"
+                                 style={{backgroundColor: stat.therapist.color}}>
+                              {stat.therapist.name[0]}
+                            </div>
+                            <span className="font-bold text-slate-700">{stat.therapist.name}</span>
+                          </div>
+                        </td>
+                        {stat.months.map((mCount, i) => (
+                          <td key={i} className={`py-3 ${mCount > 0 ? 'text-slate-800 font-bold' : 'text-slate-300'}`}>
+                            {mCount > 0 ? mCount : '-'}
+                          </td>
+                        ))}
+                        <td className="py-3 px-4 text-sky-600 font-extrabold text-lg">
+                          {stat.total}
+                        </td>
+                      </tr>
+                    ))}
+                    {/* Total Row */}
+                    <tr className="bg-slate-50 font-bold text-slate-700">
+                      <td className="py-3 px-4 text-left">총계 (전체)</td>
+                      {Array.from({length: 12}).map((_, i) => {
+                        const monthTotal = yearlyTherapistStats.reduce((sum, stat) => sum + stat.months[i], 0);
+                        return (
+                          <td key={i} className="py-3 text-slate-600">
+                            {monthTotal > 0 ? monthTotal : '-'}
+                          </td>
+                        );
+                      })}
+                      <td className="py-3 px-4 text-sky-600 font-extrabold text-xl">
+                        {yearlyTherapistStats.reduce((sum, stat) => sum + stat.total, 0)}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =========================================================================
             탭 5: 환자 관리
         ========================================================================= */}
         {adminTab === 'patients' && (
@@ -1661,7 +1732,10 @@ export default function AdminPage() {
                             style={{ backgroundColor: (th?.color || '#94a3b8') + '33', color: th?.color || '#64748b' }}
                             title={`${th?.name} ${l.start_time.slice(0,5)}~${l.end_time.slice(0,5)} ${l.reason || ''}`}
                           >
-                            {th?.name?.split(' ')[0]}
+                            {th?.name?.split(' ')[0]}({(() => {
+                              const match = l.reason?.match(/^\[(.*?)\]/);
+                              return match ? match[1] : (l.start_time === '00:00' ? '연차' : l.start_time === '09:00' ? '오전반차' : l.start_time === '12:30' ? '오후반차' : '휴무');
+                            })()})
                           </button>
                         );
                       })}

@@ -282,8 +282,11 @@ export default function TherapistDashboard() {
                         <span className={`text-xs font-bold mt-1 ${i%7===0 ? 'text-rose-500' : i%7===6 ? 'text-blue-500' : 'text-slate-700'}`}>{d}</span>
                         <div className="mt-1 w-full flex flex-col gap-1 px-0.5">
                           {dayLeaves.map(l => (
-                            <div key={l.id} className="bg-indigo-100 text-indigo-700 text-[9px] px-1 py-0.5 rounded font-medium truncate" title={`${l.start_time}~${l.end_time}`}>
-                              {l.start_time.slice(0,5)}~{l.end_time.slice(0,5)}
+                            <div key={l.id} className="bg-indigo-100 text-indigo-700 text-[9px] px-1 py-0.5 rounded font-bold truncate" title={`${l.start_time}~${l.end_time}`}>
+                              {(() => {
+                                const match = l.reason?.match(/^\[(.*?)\]/);
+                                return match ? match[1] : (l.start_time === '00:00' ? '연차' : l.start_time === '09:00' ? '오전반차' : l.start_time === '12:30' ? '오후반차' : '휴무');
+                              })()}
                             </div>
                           ))}
                         </div>
