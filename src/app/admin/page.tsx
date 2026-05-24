@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist, AuditLog } from '@/lib/types';
-import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive } from '@/lib/api';
+import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
@@ -721,7 +721,11 @@ export default function AdminPage() {
                                       onClick={async () => {
                                         if (confirm('이 예약의 수납을 확인하셨습니까? (통계에 반영됩니다)')) {
                                           await updateReservationStatus(res.id, 'paid');
-                                          await new Promise(r => setTimeout(r, 400));
+                                          await insertAuditLog('PAYMENT_COMPLETED', '관리자', {
+                                            patientName: res.patient_name,
+                                            date: res.date,
+                                            time: res.start_time
+                                          });
                                           await loadData();
                                         }
                                       }}
