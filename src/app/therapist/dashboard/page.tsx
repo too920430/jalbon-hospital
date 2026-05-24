@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
@@ -439,21 +439,27 @@ export default function TherapistDashboard() {
                                         const isSelected = editTime === time;
                                         const isDisabled = isFull || err !== null;
                                         return (
-                                          <button
-                                            key={time}
-                                            disabled={isDisabled}
-                                            onClick={() => !isDisabled && setEditTime(time)}
-                                            className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                                              isSelected
-                                                ? 'bg-sky-500 text-white shadow-sm'
-                                                : isDisabled
-                                                  ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
-                                                  : 'bg-white border border-sky-200 text-slate-700 hover:bg-sky-50'
-                                            }`}
-                                          >
-                                            {formatTime(time)}
-                                            {isDisabled && !isSelected && <div className="text-[9px] leading-tight break-keep">{err || '마감'}</div>}
-                                          </button>
+                                          <React.Fragment key={time}>
+                                            <button
+                                              disabled={isDisabled}
+                                              onClick={() => !isDisabled && setEditTime(time)}
+                                              className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                                                isSelected
+                                                  ? 'bg-sky-500 text-white shadow-sm'
+                                                  : isDisabled
+                                                    ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                                    : 'bg-white border border-sky-200 text-slate-700 hover:bg-sky-50'
+                                              }`}
+                                            >
+                                              {formatTime(time)}
+                                              {isDisabled && !isSelected && <div className="text-[9px] leading-tight break-keep">{err || '마감'}</div>}
+                                            </button>
+                                            {time === '12:00' && dateObj.getDay() !== 6 && (
+                                              <div className="col-span-2 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-xl text-slate-400 text-xs font-medium">
+                                                점심시간 12:30 ~ 1:30
+                                              </div>
+                                            )}
+                                          </React.Fragment>
                                         );
                                       })}
                                     </div>
