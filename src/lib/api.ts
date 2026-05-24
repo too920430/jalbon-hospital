@@ -354,9 +354,6 @@ export async function updateReservationStatus(
       await insertAuditLog('RESERVATION_CANCELED', thName, { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
     } else if (status === 'done') {
       await insertAuditLog('TREATMENT_COMPLETED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
-      const msg = `[잘본병원] ${resToUpdate.patient_name}님의 예약(${resToUpdate.date} ${resToUpdate.start_time.slice(0,5)}) 치료가 완료되었습니다. 수납을 진행해 주세요.`;
-      await sendAligoSms(resToUpdate.patient_phone, msg);
-      await insertSmsLog(resToUpdate.patient_name, resToUpdate.patient_phone, msg, thName);
     } else if (status === 'approved') {
       await insertAuditLog('RESERVATION_APPROVED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
       const msg = `[잘본병원] ${resToUpdate.patient_name}님의 예약(${resToUpdate.date} ${resToUpdate.start_time.slice(0,5)})이 ${thName}님께 확정되었습니다.`;
@@ -465,11 +462,14 @@ export async function insertAuditLog(
     localStorage.setItem('jalbon_audit_logs', JSON.stringify(logs));
     return;
   }
-  await supabase.from('audit_logs').insert({
+  const { error } = await supabase.from('audit_logs').insert({
     action_type: actionType,
     actor_name: actorName,
     details
   });
+  if (error) {
+    console.error('Failed to insert audit log:', error);
+  }
 }
 
 export async function getAuditLogs(): Promise<AuditLog[]> {
@@ -591,6 +591,15 @@ export async function getSmsLogs(): Promise<SmsLog[]> {
     .select('*')
     .order('created_at', { ascending: false });
   return (data || []) as SmsLog[];
+}
+
+export async function deleteSmsLogs(): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    localStorage.setItem('jalbon_sms_logs', JSON.stringify([]));
+    return true;
+  }
+  const { error } = await supabase.from('sms_logs').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  return !error;
 }
 
 function getLocalSmsLogs(): SmsLog[] {

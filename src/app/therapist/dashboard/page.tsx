@@ -47,8 +47,7 @@ export default function TherapistDashboard() {
   const [selectedLeaveDate, setSelectedLeaveDate] = useState<string | null>(null);
   
   const [leaveDate, setLeaveDate] = useState(toDateStr(new Date()));
-  const [leaveStartTime, setLeaveStartTime] = useState('09:00');
-  const [leaveEndTime, setLeaveEndTime] = useState('18:00');
+  const [leaveType, setLeaveType] = useState('연차');
   const [leaveReason, setLeaveReason] = useState('');
 
   useEffect(() => {
@@ -307,25 +306,35 @@ export default function TherapistDashboard() {
                         <input type="date" className="input-field" value={leaveDate} onChange={e => setLeaveDate(e.target.value)} />
                       </div>
                       <div className="col-span-2">
+                        <label className="text-xs font-semibold text-slate-600 block mb-1">휴무 종류</label>
+                        <select className="input-field" value={leaveType} onChange={e => setLeaveType(e.target.value)}>
+                          <option value="오전반차">오전반차</option>
+                          <option value="오후반차">오후반차</option>
+                          <option value="연차">연차</option>
+                        </select>
+                      </div>
+                      <div className="col-span-2">
                         <label className="text-xs font-semibold text-slate-600 block mb-1">사유</label>
-                        <input type="text" placeholder="연차, 반차, 병가 등" className="input-field" value={leaveReason} onChange={e => setLeaveReason(e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-slate-600 block mb-1">시작 시간</label>
-                        <input type="time" className="input-field" value={leaveStartTime} onChange={e => setLeaveStartTime(e.target.value)} />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-slate-600 block mb-1">종료 시간</label>
-                        <input type="time" className="input-field" value={leaveEndTime} onChange={e => setLeaveEndTime(e.target.value)} />
+                        <input type="text" placeholder="사유 (선택)" className="input-field" value={leaveReason} onChange={e => setLeaveReason(e.target.value)} />
                       </div>
                     </div>
                     <button 
                       className="btn-primary w-full mt-2 py-3"
                       onClick={async () => {
                         if (!therapist) return;
-                        if (leaveStartTime >= leaveEndTime) { alert('종료 시간은 시작 시간보다 늦어야 합니다.'); return; }
                         setActionLoading('leave');
-                        const res = await insertTherapistLeave(therapist.id, leaveDate, leaveStartTime, leaveEndTime, leaveReason);
+                        
+                        let startT = '00:00';
+                        let endT = '23:59';
+                        if (leaveType === '오전반차') {
+                          startT = '09:00';
+                          endT = '13:30';
+                        } else if (leaveType === '오후반차') {
+                          startT = '12:30';
+                          endT = '23:59';
+                        }
+                        
+                        const res = await insertTherapistLeave(therapist.id, leaveDate, startT, endT, `[${leaveType}] ${leaveReason}`.trim());
                         if (res.success) {
                           setLeaveReason('');
                           setSelectedLeaveDate(null);
@@ -353,15 +362,7 @@ export default function TherapistDashboard() {
                                   <div className="text-sm font-bold text-indigo-600">{l.start_time.slice(0,5)} ~ {l.end_time.slice(0,5)}</div>
                                   <div className="text-[10px] text-slate-500 font-medium">{l.reason || '사유 없음'}</div>
                                 </div>
-                                <button onClick={async () => {
-                                  if(!confirm('휴무를 삭제하시겠습니까?')) return;
-                                  setActionLoading(`del-leave-${l.id}`);
-                                  const res = await deleteTherapistLeave(l.id);
-                                  if (res.success && therapist) await loadReservations(therapist.id);
-                                  setActionLoading(null);
-                                }} disabled={actionLoading === `del-leave-${l.id}`} className="text-rose-500 text-xs font-bold hover:bg-rose-50 px-3 py-1.5 rounded-lg transition-colors border border-rose-100 bg-white shadow-sm">
-                                  {actionLoading === `del-leave-${l.id}` ? '삭제 중...' : '삭제'}
-                                </button>
+                                <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded">등록됨</span>
                               </div>
                             ))}
                           </div>

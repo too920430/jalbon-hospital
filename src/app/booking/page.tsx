@@ -59,7 +59,8 @@ export default function BookingPage() {
   }, [calMonth]);
 
   const selectDate = (date: Date) => {
-    if (!isOpenDay(date) || date < today) return;
+    const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    if (!isOpenDay(date) || date < todayDateOnly) return;
     setForm((f) => ({ ...f, date: toDateStr(date), startTime: null }));
   };
 

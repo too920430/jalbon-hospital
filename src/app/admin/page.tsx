@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist, AuditLog, SmsLog } from '@/lib/types';
-import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs, getTherapistLeaves, insertTherapistLeave, updateTherapistLeave, deleteTherapistLeave } from '@/lib/api';
+import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs, deleteSmsLogs, getTherapistLeaves, insertTherapistLeave, updateTherapistLeave, deleteTherapistLeave } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -113,8 +113,7 @@ export default function AdminPage() {
   // 휴무 관리 폼 상태
   const [leaveTherapistId, setLeaveTherapistId] = useState<string>('');
   const [leaveDate, setLeaveDate] = useState(toDateStr(new Date()));
-  const [leaveStartTime, setLeaveStartTime] = useState('09:00');
-  const [leaveEndTime, setLeaveEndTime] = useState('18:00');
+  const [leaveType, setLeaveType] = useState('연차');
   const [leaveReason, setLeaveReason] = useState('');
   const [leaveLoading, setLeaveLoading] = useState<string | null>(null);
 
@@ -170,6 +169,18 @@ export default function AdminPage() {
       return;
     }
     
+    if (logDeleteTarget.type === 'sms') {
+      const success = await deleteSmsLogs();
+      if (success) {
+        alert('알림 내역이 삭제되었습니다.');
+        setLogDeleteTarget(null);
+        await loadData();
+      } else {
+        alert('알림 내역 삭제 중 오류가 발생했습니다.');
+      }
+      return;
+    }
+
     const success = await deleteAuditLogs(logDeleteTarget.actionType);
     if (success) {
       alert('삭제되었습니다.');
@@ -654,13 +665,6 @@ export default function AdminPage() {
             정산 관리
           </button>
           <button
-            onClick={() => setAdminTab('logs')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'logs' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            전체 로그
-          </button>
-          <button
             onClick={() => setAdminTab('sms')}
             className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
               ${adminTab === 'sms' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
@@ -673,6 +677,13 @@ export default function AdminPage() {
               ${adminTab === 'leaves' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
           >
             휴무 관리
+          </button>
+          <button
+            onClick={() => setAdminTab('logs')}
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
+              ${adminTab === 'logs' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            전체 로그
           </button>
         </div>
 
@@ -1680,6 +1691,13 @@ export default function AdminPage() {
                 <h2 className="text-xl font-bold text-slate-800">알리고 알림내역</h2>
                 <p className="text-sm text-slate-500">발송된 알림톡/문자 메시지 기록입니다.</p>
               </div>
+              <button onClick={() => {
+                setLogDeleteTarget({ type: 'sms', label: '알리고 알림내역' });
+                setLogDeletePassword('');
+                setShowLogDeletePassword(false);
+              }} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-3 py-1.5 rounded-lg transition-colors border border-red-200">
+                🗑 알림 내역 삭제
+              </button>
             </div>
 
             <div className="card overflow-hidden p-0">
@@ -1861,9 +1879,36 @@ export default function AdminPage() {
         const lcMonthStr = `${leavesCalYear}-${String(leavesCalMonth + 1).padStart(2, '0')}`;
         const lcLeaves = leaves.filter(l => l.date.startsWith(lcMonthStr));
 
+        // 이번 달 휴무 통계
+        const therapistStats = therapists.map(th => {
+          const thLeaves = lcLeaves.filter(l => l.therapist_id === th.id);
+          const annual = thLeaves.filter(l => l.reason?.includes('연차')).length;
+          const morning = thLeaves.filter(l => l.reason?.includes('오전반차')).length;
+          const afternoon = thLeaves.filter(l => l.reason?.includes('오후반차')).length;
+          return { name: th.name, annual, morning, afternoon, total: thLeaves.length };
+        }).filter(stat => stat.total > 0);
+
         return (
         <div className="space-y-6 animate-fade-in-up">
-          <h2 className="text-xl font-bold text-slate-800">휴무 관리</h2>
+          <h2 className="text-xl font-bold text-slate-800 mb-4">휴무 관리</h2>
+          
+          {therapistStats.length > 0 && (
+            <div className="card mb-4 bg-indigo-50 border-indigo-100">
+              <h3 className="font-bold text-indigo-800 mb-2">이번 달 휴무 사용 통계 ({leavesCalYear}년 {leavesCalMonth + 1}월)</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {therapistStats.map(stat => (
+                  <div key={stat.name} className="bg-white p-3 rounded-xl shadow-sm border border-indigo-50">
+                    <div className="font-bold text-slate-700 mb-1">{stat.name}</div>
+                    <div className="text-xs text-slate-500 space-y-0.5">
+                      <div className="flex justify-between"><span>연차:</span> <span className="font-semibold text-slate-700">{stat.annual}회</span></div>
+                      <div className="flex justify-between"><span>오전반차:</span> <span className="font-semibold text-slate-700">{stat.morning}회</span></div>
+                      <div className="flex justify-between"><span>오후반차:</span> <span className="font-semibold text-slate-700">{stat.afternoon}회</span></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 달력 뷰 */}
           <div className="card">
@@ -1929,7 +1974,7 @@ export default function AdminPage() {
           {/* 새 휴무 등록 폼 */}
           <div className="card space-y-4">
             <h3 className="font-bold text-slate-700">새 휴무 등록</h3>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="md:col-span-1">
                 <label className="text-xs font-semibold text-slate-600 block mb-1">치료사</label>
                 <select className="input-field" value={leaveTherapistId} onChange={e => setLeaveTherapistId(e.target.value)}>
@@ -1942,12 +1987,12 @@ export default function AdminPage() {
                 <input type="date" className="input-field" value={leaveDate} onChange={e => setLeaveDate(e.target.value)} />
               </div>
               <div className="md:col-span-1">
-                <label className="text-xs font-semibold text-slate-600 block mb-1">시작 시간</label>
-                <input type="time" className="input-field" value={leaveStartTime} onChange={e => setLeaveStartTime(e.target.value)} />
-              </div>
-              <div className="md:col-span-1">
-                <label className="text-xs font-semibold text-slate-600 block mb-1">종료 시간</label>
-                <input type="time" className="input-field" value={leaveEndTime} onChange={e => setLeaveEndTime(e.target.value)} />
+                <label className="text-xs font-semibold text-slate-600 block mb-1">휴무 종류</label>
+                <select className="input-field" value={leaveType} onChange={e => setLeaveType(e.target.value)}>
+                  <option value="오전반차">오전반차</option>
+                  <option value="오후반차">오후반차</option>
+                  <option value="연차">연차</option>
+                </select>
               </div>
               <div className="md:col-span-1">
                 <label className="text-xs font-semibold text-slate-600 block mb-1">사유</label>
@@ -1958,9 +2003,19 @@ export default function AdminPage() {
               className="btn-primary w-full"
               onClick={async () => {
                 if (!leaveTherapistId) return alert('치료사를 선택하세요.');
-                if (leaveStartTime >= leaveEndTime) return alert('종료 시간은 시작 시간보다 늦어야 합니다.');
+                
+                let startT = '00:00';
+                let endT = '23:59';
+                if (leaveType === '오전반차') {
+                  startT = '09:00';
+                  endT = '13:30';
+                } else if (leaveType === '오후반차') {
+                  startT = '12:30';
+                  endT = '23:59';
+                }
+
                 setLeaveLoading('create');
-                const res = await insertTherapistLeave(leaveTherapistId, leaveDate, leaveStartTime, leaveEndTime, leaveReason);
+                const res = await insertTherapistLeave(leaveTherapistId, leaveDate, startT, endT, `[${leaveType}] ${leaveReason}`.trim());
                 if (res.success) {
                   setLeaveReason('');
                   await loadData();
@@ -2053,6 +2108,20 @@ export default function AdminPage() {
                     <button onClick={() => setEditingLeave(null)} className="text-slate-400 hover:text-slate-600 font-bold text-xl">✕</button>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
+                    <div className="col-span-2">
+                      <label className="text-xs font-semibold text-slate-600 block mb-1">휴무 종류 (수정 시 시작/종료 시간이 변경됩니다)</label>
+                      <select className="input-field" onChange={e => {
+                        const t = e.target.value;
+                        if (t === '오전반차') { setEditLeaveStart('09:00'); setEditLeaveEnd('13:30'); }
+                        else if (t === '오후반차') { setEditLeaveStart('12:30'); setEditLeaveEnd('23:59'); }
+                        else if (t === '연차') { setEditLeaveStart('00:00'); setEditLeaveEnd('23:59'); }
+                      }}>
+                        <option value="">휴무 종류를 선택하면 시간이 자동 지정됩니다</option>
+                        <option value="오전반차">오전반차</option>
+                        <option value="오후반차">오후반차</option>
+                        <option value="연차">연차</option>
+                      </select>
+                    </div>
                     <div>
                       <label className="text-xs font-semibold text-slate-600 block mb-1">시작 시간</label>
                       <input type="time" className="input-field" value={editLeaveStart} onChange={e => setEditLeaveStart(e.target.value)} />
