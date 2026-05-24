@@ -62,9 +62,7 @@ export default function AdminPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [logFilter, setLogFilter] = useState<'all' | 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED'>('all');
 
-  const listMonthRef = React.useRef<HTMLInputElement>(null);
-  const settlementMonthRef = React.useRef<HTMLInputElement>(null);
-
+  const [pickerType, setPickerType] = useState<'list' | 'monthly' | 'settlement' | null>(null);
   useEffect(() => {
     const role = sessionStorage.getItem('jalbon_role');
     if (role !== 'admin') {
@@ -638,27 +636,11 @@ export default function AdminPage() {
                   <button onClick={handleListMonthPrev} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">◀</button>
                   <div 
                     className="relative flex items-center justify-center cursor-pointer hover:text-sky-600 transition-colors"
-                    onClick={() => {
-                      if (listMonthRef.current) {
-                        try { listMonthRef.current.showPicker(); } catch (e) { listMonthRef.current.focus(); }
-                      }
-                    }}
+                    onClick={() => setPickerType('list')}
                   >
                     <h2 className="font-extrabold text-slate-700 min-w-[90px] text-center text-sm">
                       {listMonth.split('-')[0]}년 {listMonth.split('-')[1]}월
                     </h2>
-                    <input
-                      ref={listMonthRef}
-                      type="month"
-                      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 opacity-0 pointer-events-none"
-                      value={listMonth}
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          setListMonth(e.target.value);
-                          setFilterDateMode('month');
-                        }
-                      }}
-                    />
                   </div>
                   <button onClick={handleListMonthNext} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">▶</button>
                 </div>
@@ -775,9 +757,14 @@ export default function AdminPage() {
         {adminTab === 'monthly' && (
           <div className="space-y-6 animate-fade-in-up">
             <div className="card flex items-center justify-between px-6">
-              <button onClick={prevMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors">◀</button>
-              <h2 className="font-extrabold text-2xl text-slate-700">{calYear}년 {calMonth + 1}월</h2>
-              <button onClick={nextMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors">▶</button>
+              <button onClick={prevMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors text-xl">◀</button>
+              <h2 
+                className="font-extrabold text-2xl text-slate-700 cursor-pointer hover:text-sky-600 transition-colors"
+                onClick={() => setPickerType('monthly')}
+              >
+                {calYear}년 {calMonth + 1}월
+              </h2>
+              <button onClick={nextMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors text-xl">▶</button>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1181,26 +1168,11 @@ export default function AdminPage() {
                 <button onClick={handleSettlementMonthPrev} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">◀</button>
                 <div 
                   className="relative flex items-center justify-center cursor-pointer hover:text-sky-600 transition-colors"
-                  onClick={() => {
-                    if (settlementMonthRef.current) {
-                      try { settlementMonthRef.current.showPicker(); } catch (e) { settlementMonthRef.current.focus(); }
-                    }
-                  }}
+                  onClick={() => setPickerType('settlement')}
                 >
                   <h2 className="font-extrabold text-xl text-slate-700 min-w-[110px] text-center">
                     {settlementMonth.split('-')[0]}년 {settlementMonth.split('-')[1]}월
                   </h2>
-                  <input
-                    ref={settlementMonthRef}
-                    type="month"
-                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 opacity-0 pointer-events-none"
-                    value={settlementMonth}
-                    onChange={(e) => {
-                      if (e.target.value) {
-                        setSettlementMonth(e.target.value);
-                      }
-                    }}
-                  />
                 </div>
                 <button onClick={handleSettlementMonthNext} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">▶</button>
               </div>
@@ -1303,6 +1275,35 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* Custom Month Picker Modal */}
+        {pickerType === 'list' && (
+          <MonthPickerModal
+            initialYear={parseInt(listMonth.split('-')[0])}
+            initialMonth={parseInt(listMonth.split('-')[1])}
+            onSelect={(y, m) => {
+              setListMonth(`${y}-${String(m).padStart(2, '0')}`);
+              setFilterDateMode('month');
+            }}
+            onClose={() => setPickerType(null)}
+          />
+        )}
+        {pickerType === 'monthly' && (
+          <MonthPickerModal
+            initialYear={calYear}
+            initialMonth={calMonth + 1}
+            onSelect={(y, m) => setCurrentMonth(new Date(y, m - 1, 1))}
+            onClose={() => setPickerType(null)}
+          />
+        )}
+        {pickerType === 'settlement' && (
+          <MonthPickerModal
+            initialYear={parseInt(settlementMonth.split('-')[0])}
+            initialMonth={parseInt(settlementMonth.split('-')[1])}
+            onSelect={(y, m) => setSettlementMonth(`${y}-${String(m).padStart(2, '0')}`)}
+            onClose={() => setPickerType(null)}
+          />
+        )}
+
       </div>
     </div>
   );
@@ -1315,6 +1316,44 @@ function StatCard({ label, value, color, highlight, onClick, isActive }: {
     <div onClick={onClick} className={`card text-center py-4 transition-all ${onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5' : ''} ${highlight ? 'border-2 border-amber-300 bg-amber-50' : ''} ${isActive ? 'ring-2 ring-sky-400 shadow-md bg-sky-50' : ''}`}>
       <div className={`text-3xl font-extrabold ${color}`}>{value}</div>
       <div className="text-xs text-slate-500 mt-1">{label}</div>
+    </div>
+  );
+}
+
+function MonthPickerModal({
+  initialYear,
+  initialMonth,
+  onSelect,
+  onClose
+}: {
+  initialYear: number;
+  initialMonth: number;
+  onSelect: (y: number, m: number) => void;
+  onClose: () => void;
+}) {
+  const [year, setYear] = useState(initialYear);
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+      <div className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-[280px] animate-fade-in-up">
+        <div className="flex justify-between items-center mb-6">
+          <button onClick={() => setYear(y => y - 1)} className="p-2 text-slate-400 hover:text-sky-500 font-bold text-xl transition-colors">◀</button>
+          <span className="text-xl font-bold text-slate-800">{year}년</span>
+          <button onClick={() => setYear(y => y + 1)} className="p-2 text-slate-400 hover:text-sky-500 font-bold text-xl transition-colors">▶</button>
+        </div>
+        <div className="grid grid-cols-4 gap-2 mb-6">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <button
+              key={i}
+              onClick={() => { onSelect(year, i + 1); onClose(); }}
+              className={`py-3 rounded-2xl text-sm font-semibold transition-colors
+                ${year === initialYear && i + 1 === initialMonth ? 'bg-sky-500 text-white shadow-md' : 'bg-slate-50 text-slate-600 hover:bg-sky-50 hover:text-sky-600'}`}
+            >
+              {i + 1}월
+            </button>
+          ))}
+        </div>
+        <button onClick={onClose} className="btn-secondary w-full py-3">닫기</button>
+      </div>
     </div>
   );
 }
