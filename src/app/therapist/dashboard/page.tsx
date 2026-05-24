@@ -333,6 +333,21 @@ export default function TherapistDashboard() {
                           endT = '23:59';
                         }
                         
+                        const existingLeavesOnDate = leaves.filter(l => l.date === leaveDate);
+                        const hasAnnual = existingLeavesOnDate.some(l => l.reason?.includes('연차') || l.start_time === '00:00');
+                        const hasMorning = existingLeavesOnDate.some(l => l.reason?.includes('오전반차') || l.start_time === '09:00');
+                        const hasAfternoon = existingLeavesOnDate.some(l => l.reason?.includes('오후반차') || l.start_time === '12:30');
+
+                        if (leaveType === '연차' && existingLeavesOnDate.length > 0) {
+                          return alert('이미 해당 날짜에 다른 휴무가 등록되어 있어 연차를 추가할 수 없습니다.');
+                        }
+                        if (leaveType === '오전반차' && (hasAnnual || hasMorning)) {
+                          return alert('이미 해당 날짜에 연차 또는 오전반차가 등록되어 있습니다.');
+                        }
+                        if (leaveType === '오후반차' && (hasAnnual || hasAfternoon)) {
+                          return alert('이미 해당 날짜에 연차 또는 오후반차가 등록되어 있습니다.');
+                        }
+                        
                         const overlappingRes = reservations.filter(r => {
                           if (r.date !== leaveDate) return false;
                           if (r.status === 'rejected' || r.status === 'no_show') return false;

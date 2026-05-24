@@ -949,7 +949,10 @@ export default function AdminPage() {
               </div>
               
               <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
-                {auditLogs.filter(log => logFilter === 'all' || log.action_type === logFilter).map((log) => {
+                {auditLogs.filter(log => logFilter === 'all' || log.action_type === logFilter).length === 0 ? (
+                  <p className="text-center text-slate-400 py-8 text-sm">해당하는 로그 기록이 없습니다.</p>
+                ) : (
+                  auditLogs.filter(log => logFilter === 'all' || log.action_type === logFilter).map((log) => {
                     const date = new Date(log.created_at);
                     const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
                     
@@ -1013,8 +1016,8 @@ export default function AdminPage() {
                         </div>
                       </div>
                     );
-                  });
-                })()}
+                  })
+                )}
               </div>
             </div>
           </div>
@@ -1695,7 +1698,12 @@ export default function AdminPage() {
               </div>
               <div className="md:col-span-1">
                 <label className="text-xs font-semibold text-slate-600 block mb-1">사유</label>
-                  onClick={async () => {
+                <input type="text" placeholder="사유 (선택)" className="input-field" value={leaveReason} onChange={e => setLeaveReason(e.target.value)} />
+              </div>
+            </div>
+            <button
+              className="btn-primary w-full"
+              onClick={async () => {
                 if (!leaveTherapistId) return alert('치료사를 선택하세요.');
                 
                 let startT = '00:00';
@@ -1706,6 +1714,21 @@ export default function AdminPage() {
                 } else if (leaveType === '오후반차') {
                   startT = '12:30';
                   endT = '23:59';
+                }
+
+                const existingLeavesOnDate = leaves.filter(l => l.date === leaveDate && l.therapist_id === leaveTherapistId);
+                const hasAnnual = existingLeavesOnDate.some(l => l.reason?.includes('연차') || l.start_time === '00:00');
+                const hasMorning = existingLeavesOnDate.some(l => l.reason?.includes('오전반차') || l.start_time === '09:00');
+                const hasAfternoon = existingLeavesOnDate.some(l => l.reason?.includes('오후반차') || l.start_time === '12:30');
+
+                if (leaveType === '연차' && existingLeavesOnDate.length > 0) {
+                  return alert('이미 해당 날짜에 다른 휴무가 등록되어 있어 연차를 추가할 수 없습니다.');
+                }
+                if (leaveType === '오전반차' && (hasAnnual || hasMorning)) {
+                  return alert('이미 해당 날짜에 연차 또는 오전반차가 등록되어 있습니다.');
+                }
+                if (leaveType === '오후반차' && (hasAnnual || hasAfternoon)) {
+                  return alert('이미 해당 날짜에 연차 또는 오후반차가 등록되어 있습니다.');
                 }
 
                 const overlappingRes = reservations.filter(r => {

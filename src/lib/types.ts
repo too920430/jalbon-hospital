@@ -40,7 +40,7 @@ export interface BookingFormData {
   startTime: string | null;
 }
 
-export type ActionType = 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED' | 'TREATMENT_COMPLETED' | 'PAYMENT_COMPLETED' | 'RESERVATION_APPROVED';
+export type ActionType = 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED' | 'TREATMENT_COMPLETED' | 'PAYMENT_COMPLETED' | 'RESERVATION_APPROVED' | 'THERAPIST_LEAVE';
 
 export interface AuditLog {
   id: string;
