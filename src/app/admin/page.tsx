@@ -696,9 +696,11 @@ export default function AdminPage() {
               <StatCard label="수납 대기" value={allDone} color="text-amber-600" highlight={allDone > 0} 
                 isActive={filterStatus === 'done'}
                 onClick={() => { setFilterDateMode('all'); setFilterStatus('done'); setFilterTherapist(''); }} />
-              <StatCard label="이번달 예약" value={thisMonthReservations.length} color="text-slate-700" 
+              <StatCard label={`${parseInt(listMonth.split('-')[1])}월 예약`} value={reservations.filter((r) => r.date.startsWith(listMonth)).length} color="text-slate-700" 
                 isActive={filterDateMode === 'month' && filterStatus === ''}
                 onClick={() => { setFilterDateMode('month'); setFilterStatus(''); setFilterTherapist(''); }} />
+              <StatCard label="올해 예약" value={reservations.filter(r => r.date.startsWith(today.slice(0, 4))).length} color="text-emerald-600" 
+                isActive={false} />
             </div>
 
             {/* Therapist stats (This Month) */}
