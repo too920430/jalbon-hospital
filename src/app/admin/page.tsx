@@ -747,6 +747,88 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* =========================================================================
+            TAB: LOGS
+            ========================================================================= */}
+        {adminTab === 'logs' && (
+          <div className="space-y-6 animate-fade-in-up">
+            <div className="card space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+                <h2 className="font-bold text-slate-700 text-lg flex items-center gap-2">
+                  <span>전체 로그 기록</span>
+                  <span className="bg-sky-100 text-sky-600 text-xs px-2 py-0.5 rounded-full">{auditLogs.length}건</span>
+                </h2>
+                <div className="flex bg-slate-50 p-1 rounded-xl gap-1 overflow-x-auto">
+                  {[
+                    { id: 'all', label: '전체보기' },
+                    { id: 'PATIENT_BOOKING', label: '환자 예약' },
+                    { id: 'THERAPIST_LOGIN', label: '치료사 로그인' },
+                    { id: 'RESERVATION_CANCELED', label: '예약 취소' }
+                  ].map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => setLogFilter(f.id as any)}
+                      className={`whitespace-nowrap px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                        logFilter === f.id ? 'bg-white text-sky-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                {(() => {
+                  const filteredLogs = auditLogs.filter(log => logFilter === 'all' || log.action_type === logFilter);
+                  if (filteredLogs.length === 0) {
+                    return <p className="text-center text-slate-400 py-8 text-sm">해당하는 로그 기록이 없습니다.</p>;
+                  }
+                  return filteredLogs.map((log) => {
+                    const date = new Date(log.created_at);
+                    const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+                    
+                    let icon = '📝';
+                    let bgColor = 'bg-slate-50';
+                    let title = '';
+                    let desc = '';
+                    
+                    if (log.action_type === 'PATIENT_BOOKING') {
+                      icon = '📅';
+                      bgColor = 'bg-sky-50';
+                      title = '환자 예약 접수';
+                      desc = `${log.actor_name} 환자님이 ${log.details?.date || ''} ${log.details?.time?.slice(0,5) || ''} 예약을 접수했습니다.`;
+                    } else if (log.action_type === 'THERAPIST_LOGIN') {
+                      icon = '🔑';
+                      bgColor = 'bg-emerald-50';
+                      title = '치료사 로그인';
+                      desc = `${log.actor_name}님이 시스템에 로그인했습니다.`;
+                    } else if (log.action_type === 'RESERVATION_CANCELED') {
+                      icon = '🗑';
+                      bgColor = 'bg-red-50';
+                      title = '예약 취소 (거절/삭제)';
+                      desc = `${log.actor_name}님이 ${log.details?.patientName || ''} 환자의 예약(${log.details?.date || ''} ${log.details?.time?.slice(0,5) || ''})을 취소했습니다. (사유: ${log.details?.reason || ''})`;
+                    }
+                    
+                    return (
+                      <div key={log.id} className={`flex items-start gap-4 p-4 rounded-2xl ${bgColor} border border-slate-100 transition-all hover:shadow-sm`}>
+                        <div className="text-2xl mt-1 bg-white w-10 h-10 rounded-xl flex items-center justify-center shadow-sm">{icon}</div>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start mb-1 gap-2">
+                            <h3 className="font-bold text-slate-700 text-sm">{title}</h3>
+                            <span className="text-[10px] text-slate-400 font-medium bg-white px-2 py-0.5 rounded-full border border-slate-100 whitespace-nowrap">{dateStr}</span>
+                          </div>
+                          <p className="text-xs text-slate-600 font-medium break-keep leading-relaxed">{desc}</p>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );
