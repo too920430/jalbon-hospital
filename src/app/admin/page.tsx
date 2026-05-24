@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
-import { getAllReservations, getTherapists } from '@/lib/api';
+import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime } from '@/lib/api';
 import { formatDate, formatTime, toDateStr } from '@/lib/slots';
 
 const STATUS_MAP = {
@@ -24,6 +24,13 @@ export default function AdminPage() {
   const [filterTherapist, setFilterTherapist] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [maxBeds, setMaxBeds] = useState(5);
+
+  // Edit modal state
+  const [editingRes, setEditingRes] = useState<Reservation | null>(null);
+  const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
+  const [editDuration, setEditDuration] = useState<30 | 50>(50);
+  const [editSaving, setEditSaving] = useState(false);
 
   // Tabs & Dates
   const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly'>('overview');
@@ -57,6 +64,23 @@ export default function AdminPage() {
   const logout = () => {
     sessionStorage.clear();
     router.push('/therapist/login');
+  };
+
+  const startEdit = (res: Reservation) => {
+    setEditingRes(res);
+    setEditDate(res.date);
+    setEditTime(res.start_time.slice(0, 5));
+    setEditDuration(res.duration);
+  };
+
+  const handleEditSave = async () => {
+    if (!editingRes || !editDate || !editTime) return;
+    setEditSaving(true);
+    const time = editTime.length === 5 ? editTime + ':00' : editTime;
+    await updateReservationDateTime(editingRes.id, editDate, time, editDuration);
+    await loadData();
+    setEditingRes(null);
+    setEditSaving(false);
   };
 
   // --- Overview Data ---
@@ -116,6 +140,70 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-[#F0F9FF]">
+
+      {/* 날짜/시간 수정 모달 */}
+      {editingRes && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4 animate-fade-in-up">
+            <div>
+              <h2 className="font-bold text-slate-800 text-lg">📅 예약 날짜/시간 변경</h2>
+              <p className="text-sm text-slate-500 mt-1">
+                {editingRes.patient_name} · {editingRes.patient_phone}
+              </p>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-sm font-semibold text-slate-600 mb-1.5 block">날짜</label>
+                <input
+                  type="date"
+                  className="input-field"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-sm font-semibold text-slate-600 mb-1.5 block">시작 시간</label>
+                  <input
+                    type="time"
+                    className="input-field"
+                    value={editTime}
+                    onChange={(e) => setEditTime(e.target.value)}
+                    step={1800}
+                  />
+                </div>
+                <div className="w-28">
+                  <label className="text-sm font-semibold text-slate-600 mb-1.5 block">치료 시간</label>
+                  <select
+                    className="input-field"
+                    value={editDuration}
+                    onChange={(e) => setEditDuration(Number(e.target.value) as 30 | 50)}
+                  >
+                    <option value={30}>30분</option>
+                    <option value={50}>50분</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleEditSave}
+                disabled={editSaving || !editDate || !editTime}
+                className="btn-primary flex-1"
+              >
+                {editSaving ? '저장 중...' : '✓ 저장'}
+              </button>
+              <button
+                onClick={() => setEditingRes(null)}
+                className="btn-secondary flex-1"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <header className="page-header">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -254,6 +342,7 @@ export default function AdminPage() {
                         <th className="px-4 py-2">치료사</th>
                         <th className="px-4 py-2">시간</th>
                         <th className="px-4 py-2">상태</th>
+                        <th className="px-4 py-2">수정</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -289,6 +378,14 @@ export default function AdminPage() {
                                 <span className={`status-badge ${statusInfo.color}`}>
                                   {statusInfo.label}
                                 </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <button
+                                  onClick={() => startEdit(res)}
+                                  className="text-xs text-sky-600 font-semibold px-2 py-1 rounded-lg border border-sky-200 hover:bg-sky-50 transition-colors"
+                                >
+                                  📅 수정
+                                </button>
                               </td>
                             </tr>
                           );

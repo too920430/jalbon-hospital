@@ -183,6 +183,31 @@ export async function updateReservationStatus(
   return !error;
 }
 
+// ─── 예약 날짜/시간 수정 ──────────────────────────────
+export async function updateReservationDateTime(
+  id: string,
+  date: string,
+  startTime: string,
+  duration: 30 | 50
+): Promise<boolean> {
+  if (!isSupabaseConfigured) {
+    const reservations = getLocalReservations();
+    const idx = reservations.findIndex((r) => r.id === id);
+    if (idx !== -1) {
+      reservations[idx].date = date;
+      reservations[idx].start_time = startTime;
+      reservations[idx].duration = duration;
+      localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
+    }
+    return true;
+  }
+  const { error } = await supabase
+    .from('reservations')
+    .update({ date, start_time: startTime, duration })
+    .eq('id', id);
+  return !error;
+}
+
 // ─── 전체 예약 (관리자) ───────────────────────────────
 export async function getAllReservations(date?: string): Promise<Reservation[]> {
   if (!isSupabaseConfigured) {
