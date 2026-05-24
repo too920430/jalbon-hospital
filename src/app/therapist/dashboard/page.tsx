@@ -511,19 +511,23 @@ export default function TherapistDashboard() {
                         </div>
                       ) : (
                         <div className="space-y-2 mb-3">
-                          <button
-                            onClick={() => startEdit(res)}
-                            className="w-full py-1.5 rounded-xl text-xs font-semibold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200"
-                          >
-                            📅 날짜/시간 변경
-                          </button>
-                          <button
-                            onClick={() => handleDelete(res.id)}
-                            disabled={actionLoading === res.id}
-                            className="w-full py-1.5 rounded-xl text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition-colors border border-red-200"
-                          >
-                            {actionLoading === res.id ? '삭제 중...' : '🗑 예약 삭제'}
-                          </button>
+                          {res.status !== 'done' && (
+                            <>
+                              <button
+                                onClick={() => startEdit(res)}
+                                className="w-full py-1.5 rounded-xl text-xs font-semibold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200"
+                              >
+                                📅 날짜/시간 변경
+                              </button>
+                              <button
+                                onClick={() => handleDelete(res.id)}
+                                disabled={actionLoading === res.id}
+                                className="w-full py-1.5 rounded-xl text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition-colors border border-red-200"
+                              >
+                                {actionLoading === res.id ? '삭제 중...' : '🗑 예약 삭제'}
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
 
