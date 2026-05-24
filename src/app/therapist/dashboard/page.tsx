@@ -558,6 +558,15 @@ export default function TherapistDashboard() {
                           치료 완료 처리
                         </button>
                       )}
+                      {res.status === 'rejected' && (
+                        <button
+                          onClick={() => handleAction(res.id, 'approved')}
+                          disabled={actionLoading === res.id}
+                          className="w-full py-2 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-sm font-semibold transition-colors mt-2"
+                        >
+                          {actionLoading === res.id ? '처리 중...' : '↺ 다시 승인하기'}
+                        </button>
+                      )}
                     </div>
                   );
                 })}
