@@ -107,7 +107,7 @@ export default function AdminPage() {
   // Logs
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [smsLogs, setSmsLogs] = useState<SmsLog[]>([]);
-  const [logFilter, setLogFilter] = useState<'all' | 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED'>('all');
+  const [logFilter, setLogFilter] = useState<'all' | 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_APPROVED' | 'TREATMENT_COMPLETED' | 'PAYMENT_COMPLETED' | 'RESERVATION_CANCELED' | 'THERAPIST_LEAVE'>('all');
   const [leaves, setLeaves] = useState<import('@/lib/types').TherapistLeave[]>([]);
   
   // 휴무 관리 폼 상태
@@ -152,9 +152,11 @@ export default function AdminPage() {
     const label = logFilter === 'all' ? '전체 로그' : {
       'PATIENT_BOOKING': '환자 예약',
       'THERAPIST_LOGIN': '치료사 로그인',
-      'RESERVATION_CANCELED': '예약 취소',
+      'RESERVATION_APPROVED': '예약 승인',
       'TREATMENT_COMPLETED': '치료 완료',
-      'PAYMENT_COMPLETED': '수납 확정'
+      'PAYMENT_COMPLETED': '수납 확정',
+      'RESERVATION_CANCELED': '예약 취소',
+      'THERAPIST_LEAVE': '휴무 내역'
     }[logFilter] as string;
     
     setLogDeleteTarget({ actionType, label });
@@ -300,7 +302,7 @@ export default function AdminPage() {
   const monthlyReservations = reservations.filter(r => r.date.startsWith(selectedMonthStr));
 
   const monthlyTherapistStats = therapists.map((t) => {
-    const tRes = monthlyReservations.filter((r) => r.therapist_id === t.id && r.status !== 'rejected');
+    const tRes = monthlyReservations.filter((r) => r.therapist_id === t.id && r.status === 'paid');
     
     // Calculate new vs existing for this month
     let newCount = 0;
@@ -309,7 +311,7 @@ export default function AdminPage() {
     tRes.forEach(r => {
       const pastPaid = reservations.filter(
         past => past.patient_phone === r.patient_phone && 
-                past.status !== 'rejected' && 
+                past.status === 'paid' && 
                 (past.date + ' ' + past.start_time) < (r.date + ' ' + r.start_time)
       );
       if (pastPaid.length > 0) existCount++;
@@ -363,8 +365,8 @@ export default function AdminPage() {
 
   const yearlyReservations = reservations.filter(r => r.date.startsWith(String(currentYear)));
   const yearlyTherapistStats = therapists.map((t) => {
-    // 월간 통계와 동일한 기준(rejected 제외)으로 통일
-    const tRes = yearlyReservations.filter(r => r.therapist_id === t.id && r.status !== 'rejected');
+    // 연간 통계 (수납 완료 건 기준)
+    const tRes = yearlyReservations.filter(r => r.therapist_id === t.id && r.status === 'paid');
     const months = Array.from({length: 12}).map((_, i) => {
       const mStr = `${currentYear}-${String(i + 1).padStart(2, '0')}`;
       return tRes.filter(r => r.date.startsWith(mStr)).length;
@@ -512,14 +514,16 @@ export default function AdminPage() {
                             const isDisabled = isFull || err !== null;
                             return (
                               <button key={time} disabled={isDisabled}
-                                onClick={() => !isDisabled && setEditTime(time)}
+                                onClick={() => {
+                                  if (isDisabled) alert("해당 시간은 예약이 가득 찼거나 치료사 일정이 없습니다.");
+                                  else setEditTime(time);
+                                }}
                                 className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${
                                   isSelected ? 'bg-sky-500 text-white shadow-sm'
                                   : isDisabled ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
                                   : 'bg-slate-50 border border-sky-200 text-slate-700 hover:bg-sky-50'
                                 }`}>
                                 {formatTime(time)}
-                                {isDisabled && !isSelected && <div className="text-[9px] leading-tight break-keep">{err || '마감'}</div>}
                               </button>
                             );
                           })}
@@ -540,14 +544,16 @@ export default function AdminPage() {
                             return (
                               <React.Fragment key={time}>
                                 <button disabled={isDisabled}
-                                  onClick={() => !isDisabled && setEditTime(time)}
+                                  onClick={() => {
+                                    if (isDisabled) alert("해당 시간은 예약이 가득 찼거나 치료사 일정이 없습니다.");
+                                    else setEditTime(time);
+                                  }}
                                   className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${
                                     isSelected ? 'bg-sky-500 text-white shadow-sm'
                                     : isDisabled ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
                                     : 'bg-slate-50 border border-sky-200 text-slate-700 hover:bg-sky-50'
                                   }`}>
                                   {formatTime(time)}
-                                  {isDisabled && !isSelected && <div className="text-[9px] leading-tight break-keep">{err || '마감'}</div>}
                                 </button>
                                 {time === '12:00' && dateObj.getDay() !== 6 && (
                                   <div className="col-span-2 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-xl text-slate-400 text-xs font-medium">
@@ -560,18 +566,6 @@ export default function AdminPage() {
                         </div>
                       </div>
                     )}
-                    {/* 범례 */}
-                    <div className="flex gap-3 text-[10px] text-slate-400 pt-1">
-                      <span className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded bg-slate-50 border border-sky-200" /> 예약 가능
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded bg-sky-500" /> 선택됨
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <span className="w-2.5 h-2.5 rounded bg-slate-100" /> 마감
-                      </span>
-                    </div>
                   </div>
                 );
               })()}
@@ -709,8 +703,6 @@ export default function AdminPage() {
             {/* Therapist stats (This Month) */}
             <div className="card">
               <h2 className="font-bold text-slate-700 mb-3">치료사별 현황 (이번 달)</h2>
-              <p className="text-xs text-slate-500 mb-4">치료사를 클릭하여 해당 치료사의 예약만 필터링하거나 더블 클릭하여 전체 리스트로 돌아갈 수 있습니다.</p>
-              
               <div className="mb-6 h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -737,7 +729,6 @@ export default function AdminPage() {
                 {therapistStats.map(({ therapist: t, thisMonth, total }) => (
                   <div key={t.id} 
                        onClick={() => { setFilterTherapist(t.id); setFilterDateMode('month'); setFilterStatus(''); setListMonth(currentMonthString); }}
-                       onDoubleClick={() => setFilterTherapist('')}
                        className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-colors border ${filterTherapist === t.id ? 'border-sky-400 bg-sky-50 shadow-sm' : 'border-transparent bg-slate-50 hover:bg-slate-100'}`}>
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold"
                          style={{ backgroundColor: t.color }}>
@@ -749,22 +740,6 @@ export default function AdminPage() {
                     </div>
                   </div>
                 ))}
-                {(() => {
-                  const unassignedThisMonth = thisMonthReservations.filter(r => r.therapist_id === null).length;
-                  const unassignedTotal = reservations.filter(r => r.therapist_id === null).length;
-                  if (unassignedTotal > 0) {
-                    return (
-                      <div key="unassigned" className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold bg-slate-400">?</div>
-                        <div>
-                          <p className="font-semibold text-slate-700 text-sm">치료사 미정</p>
-                          <p className="text-xs text-slate-500">이번 달 <strong className="text-sky-600">{unassignedThisMonth}</strong>건 · 전체 {unassignedTotal}건</p>
-                        </div>
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
               </div>
             </div>
 
@@ -786,7 +761,6 @@ export default function AdminPage() {
                         type="date" 
                         value={listDate} 
                         onChange={(e) => setListDate(e.target.value)}
-                        onClick={(e) => { try { (e.target as HTMLInputElement).showPicker(); } catch(e) {} }}
                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                       />
                     </div>
@@ -801,7 +775,6 @@ export default function AdminPage() {
                     <button onClick={handleListMonthPrev} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">◀</button>
                     <div 
                       className="relative flex items-center justify-center cursor-pointer hover:text-sky-600 transition-colors"
-                      onClick={() => setPickerType('list')}
                     >
                       <h2 className="font-extrabold text-slate-700 min-w-[90px] text-center text-sm">
                         {listMonth.split('-')[0]}년 {listMonth.split('-')[1]}월
@@ -811,14 +784,14 @@ export default function AdminPage() {
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <select id="filter-therapist" className="input-field w-auto text-sm py-2"
+                  <select className="input-field w-auto text-sm py-2"
                           value={filterTherapist} onChange={(e) => setFilterTherapist(e.target.value)}>
                     <option value="">전체 치료사</option>
                     {therapists.map((t) => (
                       <option key={t.id} value={t.id}>{t.name}</option>
                     ))}
                   </select>
-                  <select id="filter-status" className="input-field w-auto text-sm py-2"
+                  <select className="input-field w-auto text-sm py-2"
                           value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
                     <option value="">전체 상태</option>
                     <option value="pending">승인 대기</option>
@@ -835,7 +808,7 @@ export default function AdminPage() {
               ) : filtered.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="text-3xl mb-2">📭</div>
-                  <p className="text-slate-400 text-sm">이번 달 예약이 없습니다</p>
+                  <p className="text-slate-400 text-sm">예약이 없습니다</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto -mx-6">
@@ -859,9 +832,7 @@ export default function AdminPage() {
                           const th = therapists.find((t) => t.id === res.therapist_id);
                           return (
                             <tr key={res.id} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-6 py-3 text-center font-bold text-slate-400">
-                                {idx + 1}
-                              </td>
+                              <td className="px-6 py-3 text-center font-bold text-slate-400">{idx + 1}</td>
                               <td className="px-2 py-3">
                                 <p className="font-semibold text-slate-700">{formatDate(res.date)}</p>
                                 <p className="text-slate-400 text-xs">{formatTime(res.start_time)}</p>
@@ -869,66 +840,22 @@ export default function AdminPage() {
                               <td className="px-4 py-3">
                                 <p className="font-medium text-slate-700">{res.patient_name}</p>
                                 <p className="text-slate-400 text-xs">{res.patient_phone}</p>
-                                {res.pin && <p className="text-slate-400 text-xs mt-0.5">PIN: {res.pin}</p>}
                               </td>
                               <td className="px-4 py-3">
                                 {th ? (
                                   <span className="flex items-center gap-1.5">
-                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                                          style={{ backgroundColor: th.color }} />
+                                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: th.color }} />
                                     {th.name}
                                   </span>
-                                ) : (
-                                  <span className="text-slate-400">미정</span>
-                                )}
+                                ) : <span className="text-slate-400">미정</span>}
                               </td>
                               <td className="px-4 py-3 text-slate-600">{res.duration}분</td>
                               <td className="px-4 py-3">
-                                <span className={`status-badge ${statusInfo.color}`}>
-                                  {statusInfo.label}
-                                </span>
+                                <span className={`status-badge ${statusInfo.color}`}>{statusInfo.label}</span>
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex gap-2">
-                                  <button
-                                    onClick={() => startEdit(res)}
-                                    className="text-xs text-sky-600 font-semibold px-2 py-1 rounded-lg border border-sky-200 hover:bg-sky-50 transition-colors"
-                                  >
-                                    📅 수정
-                                  </button>
-                                  {(res.status === 'pending' || res.status === 'approved') && (
-                                    <button
-                                      onClick={() => {
-                                        if (confirm('이 예약을 노쇼 처리하시겠습니까?')) {
-                                          updateReservationStatus(res.id, 'no_show').then(success => {
-                                            if (success) loadData();
-                                            else alert('상태 변경 중 오류가 발생했습니다.');
-                                          });
-                                        }
-                                      }}
-                                      className="text-xs text-rose-600 font-semibold px-2 py-1 rounded-lg border border-rose-200 hover:bg-rose-50 transition-colors"
-                                    >
-                                      노쇼
-                                    </button>
-                                  )}
-                                  {res.status === 'done' && (
-                                    <button
-                                      onClick={async () => {
-                                        if (confirm('이 예약의 수납을 확인하셨습니까? (통계에 반영됩니다)')) {
-                                          await updateReservationStatus(res.id, 'paid');
-                                          await insertAuditLog('PAYMENT_COMPLETED', '관리자', {
-                                            patientName: res.patient_name,
-                                            date: res.date,
-                                            time: res.start_time
-                                          });
-                                          await loadData();
-                                        }
-                                      }}
-                                      className="text-xs text-white bg-blue-500 font-semibold px-2 py-1 rounded-lg hover:bg-blue-600 transition-colors"
-                                    >
-                                      수납 확인
-                                    </button>
-                                  )}
+                                  <button onClick={() => startEdit(res)} className="text-xs text-sky-600 font-semibold px-2 py-1 rounded-lg border border-sky-200">📅 수정</button>
                                 </div>
                               </td>
                             </tr>
@@ -950,258 +877,40 @@ export default function AdminPage() {
             <div className="card flex items-center justify-between px-6 flex-wrap gap-4">
               <div className="flex items-center gap-4">
                 <button onClick={prevMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors text-xl">◀</button>
-                <h2 
-                  className="font-extrabold text-2xl text-slate-700 cursor-pointer hover:text-sky-600 transition-colors"
-                  onClick={() => setPickerType('monthly')}
-                >
+                <h2 className="font-extrabold text-2xl text-slate-700">
                   {calYear}년 {calMonth + 1}월
                 </h2>
                 <button onClick={nextMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors text-xl">▶</button>
               </div>
-              <button onClick={() => {
-                let dataToExport: any[] = [];
-                if (selectedTherapistId && selectedTherapistId !== 'unassigned') {
-                  const th = therapists.find(t => t.id === selectedTherapistId);
-                  const thRes = monthlyReservations.filter(r => r.therapist_id === selectedTherapistId && r.status !== 'rejected');
-                  dataToExport = thRes.sort((a,b) => (a.date+a.start_time).localeCompare(b.date+b.start_time)).map((r, i) => ({
-                    'No': i + 1,
-                    '치료사': th?.name || '',
-                    '환자명': r.patient_name,
-                    '전화번호': r.patient_phone,
-                    '날짜': r.date,
-                    '시간': r.start_time.slice(0,5),
-                    '상태': STATUS_MAP[r.status]?.label || r.status,
-                    '비고': r.note || ''
-                  }));
-                } else {
-                  const allRes = monthlyReservations.filter(r => r.status !== 'rejected');
-                  dataToExport = allRes.sort((a,b) => (a.date+a.start_time).localeCompare(b.date+b.start_time)).map((r, i) => {
-                    const th = therapists.find(t => t.id === r.therapist_id);
-                    return {
-                      'No': i + 1,
-                      '치료사': th?.name || '미정',
-                      '환자명': r.patient_name,
-                      '전화번호': r.patient_phone,
-                      '날짜': r.date,
-                      '시간': r.start_time.slice(0,5),
-                      '상태': STATUS_MAP[r.status]?.label || r.status,
-                      '비고': r.note || ''
-                    };
-                  });
-                }
-                downloadCSV(dataToExport, `월간치료사통계_${calYear}년${calMonth+1}월`);
-              }} className="bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 font-bold px-4 rounded-xl text-sm transition-colors h-[42px]">
-                📥 엑셀 다운로드
-              </button>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {monthlyTherapistStats.map(({ therapist: t, count, newCount, existCount }) => {
-                const isSelected = selectedTherapistId === t.id;
-                return (
-                  <div
-                    key={t.id}
-                    onClick={() => setSelectedTherapistId(isSelected ? null : t.id)}
-                    className={`card text-center py-4 cursor-pointer transition-all ${
-                      isSelected ? 'ring-2 ring-sky-400 shadow-md bg-sky-50' : 'hover:border-sky-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="w-10 h-10 mx-auto rounded-xl flex items-center justify-center text-white font-bold mb-2 shadow-sm"
-                         style={{ backgroundColor: t.color }}>
-                      {t.name[0]}
-                    </div>
-                    <p className="font-semibold text-slate-700 text-sm">{t.name}</p>
-                    <p className="text-sky-600 font-bold mt-1 text-lg">{count}<span className="text-xs text-slate-400 font-normal ml-0.5">건</span></p>
-                    <div className="mt-2 text-[10px] text-slate-500 flex justify-center gap-2">
-                      <span className="bg-sky-50 text-sky-600 px-1.5 py-0.5 rounded">신환: {newCount}</span>
-                      <span className="bg-slate-100 px-1.5 py-0.5 rounded">재진: {existCount}</span>
-                    </div>
+              {monthlyTherapistStats.map(({ therapist: t, count, newCount, existCount }) => (
+                <div key={t.id} className="card text-center py-4">
+                  <div className="w-10 h-10 mx-auto rounded-xl flex items-center justify-center text-white font-bold mb-2 shadow-sm" style={{ backgroundColor: t.color }}>
+                    {t.name[0]}
                   </div>
-                );
-              })}
-              {(() => {
-                const unassignedCount = monthlyReservations.filter(r => r.therapist_id === null).length;
-                if (unassignedCount > 0) {
-                  return (
-                    <div
-                      key="unassigned"
-                      onClick={() => setSelectedTherapistId('unassigned')}
-                      className={`p-4 rounded-2xl border text-center transition-all cursor-pointer ${
-                        selectedTherapistId === 'unassigned' ? 'border-sky-400 bg-sky-50 shadow-md ring-2 ring-sky-100' : 'border-slate-100 bg-white hover:border-sky-200'
-                      }`}
-                    >
-                      <div className="w-10 h-10 mx-auto rounded-xl flex items-center justify-center text-white font-bold mb-2 shadow-sm bg-slate-400">?</div>
-                      <p className="font-semibold text-slate-700 text-sm">치료사 미정</p>
-                      <p className="text-sky-600 font-bold mt-1 text-lg">{unassignedCount}<span className="text-xs text-slate-400 font-normal ml-0.5">건</span></p>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
+                  <p className="font-semibold text-slate-700 text-sm">{t.name}</p>
+                  <p className="text-sky-600 font-bold mt-1 text-lg">{count}<span className="text-xs text-slate-400 font-normal ml-0.5">건</span></p>
+                </div>
+              ))}
             </div>
 
-            {/* Monthly Trend Chart */}
             <div className="card p-4">
               <h3 className="font-bold text-slate-700 mb-4">월간 예약 추이</h3>
               <div className="h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={days.filter(d => d !== null).map(day => {
+                  <LineChart data={days.filter(d => d !== null).map(day => {
                       const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                      let dayRes = monthlyReservations.filter(r => r.date === dateStr && r.status !== 'rejected');
-                      if (selectedTherapistId) {
-                        dayRes = selectedTherapistId === 'unassigned' 
-                          ? dayRes.filter(r => r.therapist_id === null)
-                          : dayRes.filter(r => r.therapist_id === selectedTherapistId);
-                      }
-                      return {
-                        day: `${day}일`,
-                        건수: dayRes.length,
-                        신환: dayRes.filter(r => reservations.filter(past => past.patient_phone === r.patient_phone && past.status !== 'rejected' && (past.date + ' ' + past.start_time) < (r.date + ' ' + r.start_time)).length === 0).length,
-                        재진: dayRes.filter(r => reservations.filter(past => past.patient_phone === r.patient_phone && past.status !== 'rejected' && (past.date + ' ' + past.start_time) < (r.date + ' ' + r.start_time)).length > 0).length
-                      };
-                    })}
-                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} allowDecimals={false} />
-                    <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                    <Line type="monotone" dataKey="건수" stroke="#0ea5e9" strokeWidth={3} dot={{ r: 3, fill: '#0ea5e9', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 5 }} />
+                      return { day: `${day}일`, 건수: monthlyReservations.filter(r => r.date === dateStr && r.status === 'paid').length };
+                    })}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="day" />
+                    <YAxis allowDecimals={false} />
+                    <RechartsTooltip />
+                    <Line type="monotone" dataKey="건수" stroke="#0ea5e9" strokeWidth={3} />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
-            </div>
-
-            <div className="card p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-bold text-slate-700">
-                  일별 예약 현황
-                  {selectedTherapistId && (
-                    <span className="ml-2 text-sm font-medium text-sky-600">
-                      ({selectedTherapistId === 'unassigned' ? '미정' : therapists.find(t => t.id === selectedTherapistId)?.name} 치료사 기준)
-                    </span>
-                  )}
-                  {!selectedTherapistId && (
-                    <span className="ml-2 text-sm font-medium text-slate-400">
-                      (전체 합산)
-                    </span>
-                  )}
-                </h3>
-              </div>
-              <div className="grid grid-cols-7 gap-1 text-center mb-2 text-xs font-semibold text-slate-400">
-                <div className="text-red-400">일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div className="text-sky-400">토</div>
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {days.map((day, idx) => {
-                  if (day === null) return <div key={`empty-${idx}`} className="h-20 rounded-xl bg-slate-50/50" />;
-                  
-                  const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                  let dayRes = monthlyReservations.filter(r => r.date === dateStr && r.status !== 'rejected');
-                  if (selectedTherapistId) {
-                    if (selectedTherapistId === 'unassigned') {
-                      dayRes = dayRes.filter(r => r.therapist_id === null);
-                    } else {
-                      dayRes = dayRes.filter(r => r.therapist_id === selectedTherapistId);
-                    }
-                  }
-
-                  const count = dayRes.length;
-                  const isToday = dateStr === today;
-
-                  return (
-                    <div
-                      key={day}
-                      className={`h-20 rounded-xl border flex flex-col p-1.5 transition-all ${
-                        isToday ? 'border-sky-400 bg-sky-50' : 'border-slate-100 bg-white'
-                      }`}
-                    >
-                      <span className={`text-xs font-semibold ${isToday ? 'text-sky-600' : 'text-slate-500'}`}>{day}</span>
-                      {count > 0 && (
-                        <div 
-                          onClick={() => setDailyStatsModal({ date: dateStr, reservations: dayRes })}
-                          className="mt-auto self-center bg-sky-100 hover:bg-sky-200 text-sky-700 px-2 py-0.5 rounded-full text-xs font-bold shadow-sm cursor-pointer transition-colors"
-                        >
-                          {count}건
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-slate-400 text-center mt-4">
-                치료사 카드를 클릭하면 해당 치료사의 일자별 건수만 확인할 수 있습니다.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* =========================================================================
-            TAB: YEARLY
-            ========================================================================= */}
-        {adminTab === 'yearly' && (
-          <div className="space-y-6 animate-fade-in-up">
-            <div className="card flex items-center justify-between px-6">
-              <button onClick={prevYear} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors">◀</button>
-              <h2 className="font-extrabold text-2xl text-slate-700">{currentYear}년</h2>
-              <button onClick={nextYear} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors">▶</button>
-            </div>
-
-            <div className="card p-0 overflow-hidden">
-              <div className="p-4 border-b border-slate-100">
-                <h3 className="font-bold text-slate-700">치료사별 월별 세부 통계</h3>
-                <p className="text-xs text-slate-500 mt-1">각 월별 예약 건수와 연간 총합을 확인할 수 있습니다.</p>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm min-w-[800px] text-center">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                      <th className="py-3 px-4 text-left font-semibold w-40">치료사</th>
-                      {Array.from({length: 12}).map((_, i) => (
-                        <th key={i} className="py-3 w-10 font-semibold">{i+1}월</th>
-                      ))}
-                      <th className="py-3 px-4 text-sky-600 font-bold w-20">합계</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {yearlyTherapistStats.map(stat => (
-                      <tr key={stat.therapist.id} className="hover:bg-sky-50/50 transition-colors">
-                        <td className="py-3 px-4 text-left">
-                          <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-[11px] font-bold shadow-sm"
-                                 style={{backgroundColor: stat.therapist.color}}>
-                              {stat.therapist.name[0]}
-                            </div>
-                            <span className="font-bold text-slate-700">{stat.therapist.name}</span>
-                          </div>
-                        </td>
-                        {stat.months.map((mCount, i) => (
-                          <td key={i} className={`py-3 ${mCount > 0 ? 'text-slate-800 font-bold' : 'text-slate-300'}`}>
-                            {mCount > 0 ? mCount : '-'}
-                          </td>
-                        ))}
-                        <td className="py-3 px-4 text-sky-600 font-extrabold text-lg">
-                          {stat.total}
-                        </td>
-                      </tr>
-                    ))}
-                    {/* Total Row */}
-                    <tr className="bg-slate-50 font-bold text-slate-700">
-                      <td className="py-3 px-4 text-left">총계 (전체)</td>
-                      {Array.from({length: 12}).map((_, i) => {
-                        const monthTotal = yearlyTherapistStats.reduce((sum, stat) => sum + stat.months[i], 0);
-                        return (
-                          <td key={i} className="py-3 text-slate-600">
-                            {monthTotal > 0 ? monthTotal : '-'}
-                          </td>
-                        );
-                      })}
-                      <td className="py-3 px-4 text-sky-600 font-extrabold text-xl">
-                        {yearlyTherapistStats.reduce((sum, stat) => sum + stat.total, 0)}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
               </div>
             </div>
           </div>
@@ -1214,19 +923,17 @@ export default function AdminPage() {
           <div className="space-y-6 animate-fade-in-up">
             <div className="card space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                <h2 className="font-bold text-slate-700 text-lg flex items-center gap-2">
-                  <span>전체 로그 기록</span>
-                  <span className="bg-sky-100 text-sky-600 text-xs px-2 py-0.5 rounded-full">{auditLogs.length}건</span>
-                </h2>
+                <h2 className="font-bold text-slate-700 text-lg">전체 로그 기록</h2>
                 <div className="flex bg-slate-50 p-1 rounded-xl gap-1 overflow-x-auto">
                   {[
                     { id: 'all', label: '전체보기' },
-                    { id: 'PATIENT_BOOKING', label: '환자 예약' },
                     { id: 'THERAPIST_LOGIN', label: '치료사 로그인' },
-                    { id: 'RESERVATION_CANCELED', label: '예약 취소' },
+                    { id: 'PATIENT_BOOKING', label: '환자 예약' },
+                    { id: 'RESERVATION_APPROVED', label: '예약 승인' },
                     { id: 'TREATMENT_COMPLETED', label: '치료 완료' },
                     { id: 'PAYMENT_COMPLETED', label: '수납 확정' },
-                    { id: 'RESERVATION_APPROVED', label: '예약 승인' }
+                    { id: 'RESERVATION_CANCELED', label: '예약 취소' },
+                    { id: 'THERAPIST_LEAVE', label: '휴무 내역' }
                   ].map(f => (
                     <button
                       key={f.id}
@@ -1241,22 +948,8 @@ export default function AdminPage() {
                 </div>
               </div>
               
-              <div className="flex justify-end px-2">
-                <button
-                  onClick={handleDeleteLogsClick}
-                  className="text-xs px-4 py-2 bg-red-50 text-red-600 font-bold rounded-xl border border-red-100 hover:bg-red-100 transition-colors flex items-center gap-1"
-                >
-                  🗑 현재 필터 로그 삭제
-                </button>
-              </div>
-              
-              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                {(() => {
-                  const filteredLogs = auditLogs.filter(log => logFilter === 'all' || log.action_type === logFilter);
-                  if (filteredLogs.length === 0) {
-                    return <p className="text-center text-slate-400 py-8 text-sm">해당하는 로그 기록이 없습니다.</p>;
-                  }
-                  return filteredLogs.map((log) => {
+              <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
+                {auditLogs.filter(log => logFilter === 'all' || log.action_type === logFilter).map((log) => {
                     const date = new Date(log.created_at);
                     const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
                     
@@ -1295,10 +988,15 @@ export default function AdminPage() {
                       bgColor = 'bg-amber-50';
                       title = '예약 승인 확정';
                       desc = `${log.actor_name}님이 ${log.details?.patientName || ''} 환자의 예약(${log.details?.date || ''} ${log.details?.time?.slice(0,5) || ''})을 승인 확정 처리했습니다.`;
+                    } else if (log.action_type === 'THERAPIST_LEAVE') {
+                      icon = '🏖️';
+                      bgColor = 'bg-fuchsia-50';
+                      title = '휴무 내역';
+                      desc = `${log.actor_name}님이 휴무(${log.details?.date || ''} ${log.details?.time || ''})를 ${log.details?.action === 'delete' ? '삭제' : log.details?.action === 'update' ? '수정' : '등록'}했습니다. (사유: ${log.details?.reason || ''})`;
                     }
                     
                     return (
-                      <div key={log.id} className={`flex items-start gap-4 p-4 rounded-2xl ${bgColor} border border-slate-100 transition-all hover:shadow-sm`}>
+                      <div key={log.id} className={`flex items-start gap-4 p-4 rounded-2xl ${bgColor} border border-slate-100`}>
                         <div className="text-2xl mt-1 bg-white w-10 h-10 rounded-xl flex items-center justify-center shadow-sm">{icon}</div>
                         <div className="flex-1">
                           <div className="flex justify-between items-start mb-1 gap-2">
@@ -2020,9 +1718,8 @@ export default function AdminPage() {
 
                 if (overlappingRes.length > 0) {
                   const patientListStr = overlappingRes.map(r => `${r.patient_name}(${r.start_time.slice(0,5)})`).join(', ');
-                  if (!confirm(`해당 시간에 예약된 환자가 있습니다: ${patientListStr}\n그래도 휴무를 등록하시겠습니까?`)) {
-                    return;
-                  }
+                  alert(`해당 시간에 예약된 환자가 있습니다: ${patientListStr}\n예약을 먼저 취소하거나 변경한 후 휴무를 등록해주세요.`);
+                  return;
                 }
 
                 setLeaveLoading('create');

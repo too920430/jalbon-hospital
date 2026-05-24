@@ -342,9 +342,8 @@ export default function TherapistDashboard() {
 
                         if (overlappingRes.length > 0) {
                           const patientListStr = overlappingRes.map(r => `${r.patient_name}(${r.start_time.slice(0,5)})`).join(', ');
-                          if (!confirm(`해당 시간에 예약된 환자가 있습니다: ${patientListStr}\n그래도 휴무를 등록하시겠습니까?`)) {
-                            return;
-                          }
+                          alert(`해당 시간에 예약된 환자가 있습니다: ${patientListStr}\n예약을 먼저 취소하거나 변경한 후 휴무를 등록해주세요.`);
+                          return;
                         }
 
                         setActionLoading('leave');
@@ -373,8 +372,17 @@ export default function TherapistDashboard() {
                             {existingLeaves.map(l => (
                               <div key={l.id} className="bg-slate-50 p-2.5 rounded-xl flex justify-between items-center border border-slate-100">
                                 <div>
-                                  <div className="text-sm font-bold text-indigo-600">{l.start_time.slice(0,5)} ~ {l.end_time.slice(0,5)}</div>
-                                  <div className="text-[10px] text-slate-500 font-medium">{l.reason || '사유 없음'}</div>
+                                  {(() => {
+                                    const match = l.reason?.match(/^\[(.*?)\]/);
+                                    const typeStr = match ? match[1] : (l.start_time === '00:00' ? '연차' : l.start_time === '09:00' ? '오전반차' : l.start_time === '12:30' ? '오후반차' : '휴무');
+                                    const reasonStr = l.reason?.replace(/^\[.*?\]\s*/, '');
+                                    return (
+                                      <>
+                                        <div className="text-sm font-bold text-indigo-600">{typeStr}</div>
+                                        <div className="text-[10px] text-slate-500 font-medium">{reasonStr || '사유 없음'}</div>
+                                      </>
+                                    );
+                                  })()}
                                 </div>
                                 <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-1 rounded">등록됨</span>
                               </div>

@@ -644,6 +644,18 @@ export async function insertTherapistLeave(
       created_at: new Date().toISOString()
     });
     localStorage.setItem('jalbon_therapist_leaves', JSON.stringify(leaves));
+    
+    const therapists = await getTherapists();
+    const th = therapists.find(t => t.id === therapistId);
+    let actor = '알수없음';
+    try {
+      if (typeof window !== 'undefined') {
+        if (sessionStorage.getItem('jalbon_role') === 'admin') actor = '관리자';
+        else if (sessionStorage.getItem('jalbon_therapist')) actor = JSON.parse(sessionStorage.getItem('jalbon_therapist')!).name;
+      }
+    } catch {}
+    await insertAuditLog('THERAPIST_LEAVE', actor, { action: 'create', therapistName: th?.name, date, time: `${startTime}~${endTime}`, reason });
+    
     return { success: true };
   }
 
@@ -655,6 +667,18 @@ export async function insertTherapistLeave(
     reason
   });
   if (error) return { success: false, error: error.message };
+  
+  const therapists = await getTherapists();
+  const th = therapists.find(t => t.id === therapistId);
+  let actor = '알수없음';
+  try {
+    if (typeof window !== 'undefined') {
+      if (sessionStorage.getItem('jalbon_role') === 'admin') actor = '관리자';
+      else if (sessionStorage.getItem('jalbon_therapist')) actor = JSON.parse(sessionStorage.getItem('jalbon_therapist')!).name;
+    }
+  } catch {}
+  await insertAuditLog('THERAPIST_LEAVE', actor, { action: 'create', therapistName: th?.name, date, time: `${startTime}~${endTime}`, reason });
+  
   return { success: true };
 }
 
@@ -666,32 +690,85 @@ export async function updateTherapistLeave(
 ): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) {
     const leaves = await getTherapistLeaves();
-    const idx = leaves.findIndex(l => l.id === id);
-    if (idx !== -1) {
-      leaves[idx].start_time = startTime;
-      leaves[idx].end_time = endTime;
-      leaves[idx].reason = reason;
+    const target = leaves.find(l => l.id === id);
+    if (target) {
+      target.start_time = startTime;
+      target.end_time = endTime;
+      target.reason = reason;
       localStorage.setItem('jalbon_therapist_leaves', JSON.stringify(leaves));
+      
+      const therapists = await getTherapists();
+      const th = therapists.find(t => t.id === target.therapist_id);
+      let actor = '알수없음';
+      try {
+        if (typeof window !== 'undefined') {
+          actor = sessionStorage.getItem('jalbon_role') === 'admin' ? '관리자' : (sessionStorage.getItem('jalbon_therapist') ? JSON.parse(sessionStorage.getItem('jalbon_therapist')!).name : '알수없음');
+        }
+      } catch {}
+      await insertAuditLog('THERAPIST_LEAVE', actor, { action: 'update', therapistName: th?.name, date: target.date, time: `${startTime}~${endTime}`, reason });
     }
     return { success: true };
   }
+  
+  const leaves = await getTherapistLeaves();
+  const target = leaves.find(l => l.id === id);
   const { error } = await supabase
     .from('therapist_leaves')
     .update({ start_time: startTime, end_time: endTime, reason })
     .eq('id', id);
   if (error) return { success: false, error: error.message };
+  
+  if (target) {
+    const therapists = await getTherapists();
+    const th = therapists.find(t => t.id === target.therapist_id);
+    let actor = '알수없음';
+    try {
+      if (typeof window !== 'undefined') {
+        actor = sessionStorage.getItem('jalbon_role') === 'admin' ? '관리자' : (sessionStorage.getItem('jalbon_therapist') ? JSON.parse(sessionStorage.getItem('jalbon_therapist')!).name : '알수없음');
+      }
+    } catch {}
+    await insertAuditLog('THERAPIST_LEAVE', actor, { action: 'update', therapistName: th?.name, date: target.date, time: `${startTime}~${endTime}`, reason });
+  }
+
   return { success: true };
 }
 
 export async function deleteTherapistLeave(id: string): Promise<{ success: boolean; error?: string }> {
+  const leaves = await getTherapistLeaves();
+  const target = leaves.find(l => l.id === id);
+
   if (!isSupabaseConfigured) {
-    let leaves = await getTherapistLeaves();
-    leaves = leaves.filter(l => l.id !== id);
-    localStorage.setItem('jalbon_therapist_leaves', JSON.stringify(leaves));
+    const newLeaves = leaves.filter(l => l.id !== id);
+    localStorage.setItem('jalbon_therapist_leaves', JSON.stringify(newLeaves));
+    
+    if (target) {
+      const therapists = await getTherapists();
+      const th = therapists.find(t => t.id === target.therapist_id);
+      let actor = '알수없음';
+      try {
+        if (typeof window !== 'undefined') {
+          actor = sessionStorage.getItem('jalbon_role') === 'admin' ? '관리자' : (sessionStorage.getItem('jalbon_therapist') ? JSON.parse(sessionStorage.getItem('jalbon_therapist')!).name : '알수없음');
+        }
+      } catch {}
+      await insertAuditLog('THERAPIST_LEAVE', actor, { action: 'delete', therapistName: th?.name, date: target.date, time: `${target.start_time.slice(0,5)}~${target.end_time.slice(0,5)}`, reason: target.reason });
+    }
     return { success: true };
   }
 
   const { error } = await supabase.from('therapist_leaves').delete().eq('id', id);
   if (error) return { success: false, error: error.message };
+  
+  if (target) {
+    const therapists = await getTherapists();
+    const th = therapists.find(t => t.id === target.therapist_id);
+    let actor = '알수없음';
+    try {
+      if (typeof window !== 'undefined') {
+        actor = sessionStorage.getItem('jalbon_role') === 'admin' ? '관리자' : (sessionStorage.getItem('jalbon_therapist') ? JSON.parse(sessionStorage.getItem('jalbon_therapist')!).name : '알수없음');
+      }
+    } catch {}
+    await insertAuditLog('THERAPIST_LEAVE', actor, { action: 'delete', therapistName: th?.name, date: target.date, time: `${target.start_time.slice(0,5)}~${target.end_time.slice(0,5)}`, reason: target.reason });
+  }
+
   return { success: true };
 }
