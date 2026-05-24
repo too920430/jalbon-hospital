@@ -108,6 +108,7 @@ export default function AdminPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [smsLogs, setSmsLogs] = useState<SmsLog[]>([]);
   const [logFilter, setLogFilter] = useState<'all' | 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_APPROVED' | 'TREATMENT_COMPLETED' | 'PAYMENT_COMPLETED' | 'RESERVATION_CANCELED' | 'THERAPIST_LEAVE'>('all');
+  const [smsSearch, setSmsSearch] = useState('');
   const [leaves, setLeaves] = useState<import('@/lib/types').TherapistLeave[]>([]);
   
   // 휴무 관리 폼 상태
@@ -894,7 +895,7 @@ export default function AdminPage() {
               <div className="flex gap-2">
                 <button 
                   onClick={() => {
-                    const csvData = monthlyReservations.map(r => {
+                    const csvData = monthlyReservations.filter(r => r.status !== 'pending').map(r => {
                       const th = therapists.find(t => t.id === r.therapist_id);
                       return {
                         '날짜': r.date,
@@ -1030,7 +1031,7 @@ export default function AdminPage() {
                     🗑 현재 내역 삭제
                   </button>
                 </div>
-                <div className="flex bg-slate-50 p-1 rounded-xl gap-1 overflow-x-auto">
+                <div className="grid grid-cols-2 sm:grid-cols-4 bg-slate-50 p-1 rounded-xl gap-1 w-full">
                   {[
                     { id: 'all', label: '전체보기' },
                     { id: 'THERAPIST_LOGIN', label: '로그인 내역' },
@@ -1576,18 +1577,27 @@ export default function AdminPage() {
         ========================================================================= */}
         {adminTab === 'sms' && (
           <div className="space-y-6 animate-fade-in-up">
-            <div className="flex justify-between items-end">
+            <div className="flex justify-between items-end flex-wrap gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-800">알리고 알림내역</h2>
                 <p className="text-sm text-slate-500">발송된 알림톡/문자 메시지 기록입니다.</p>
               </div>
-              <button onClick={() => {
-                setLogDeleteTarget({ type: 'sms', label: '알리고 알림내역' });
-                setLogDeletePassword('');
-                setShowLogDeletePassword(false);
-              }} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-3 py-1.5 rounded-lg transition-colors border border-red-200">
-                🗑 알림 내역 삭제
-              </button>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="환자명, 전화번호, 내용 검색"
+                  className="input-field max-w-[220px] h-[36px] py-1 text-sm"
+                  value={smsSearch}
+                  onChange={(e) => setSmsSearch(e.target.value)}
+                />
+                <button onClick={() => {
+                  setLogDeleteTarget({ type: 'sms', label: '알리고 알림내역' });
+                  setLogDeletePassword('');
+                  setShowLogDeletePassword(false);
+                }} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-3 py-1.5 rounded-lg transition-colors border border-red-200 h-[36px]">
+                  🗑 알림 내역 삭제
+                </button>
+              </div>
             </div>
 
             <div className="card overflow-hidden p-0">
@@ -1603,7 +1613,7 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 text-sm">
-                    {smsLogs.map((log) => {
+                    {smsLogs.filter(log => !smsSearch || log.patient_name.includes(smsSearch) || log.patient_phone.includes(smsSearch) || log.message.includes(smsSearch)).map((log) => {
                       const date = new Date(log.created_at);
                       const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
                       return (
@@ -1625,9 +1635,9 @@ export default function AdminPage() {
                         </tr>
                       );
                     })}
-                    {smsLogs.length === 0 && (
+                    {smsLogs.filter(log => !smsSearch || log.patient_name.includes(smsSearch) || log.patient_phone.includes(smsSearch) || log.message.includes(smsSearch)).length === 0 && (
                       <tr>
-                        <td colSpan={5} className="p-8 text-center text-slate-400">발송된 알림 내역이 없습니다.</td>
+                        <td colSpan={5} className="p-8 text-center text-slate-400">검색된 알림 내역이 없습니다.</td>
                       </tr>
                     )}
                   </tbody>
