@@ -690,12 +690,19 @@ export default function AdminPage() {
           <div className="space-y-6 animate-fade-in-up">
             {/* Overview stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <StatCard label="오늘 예약" value={todayAll.length} color="text-sky-600" 
+              <StatCard 
+                label={listDate === today ? "오늘 예약" : `${parseInt(listDate.split('-')[1])}/${parseInt(listDate.split('-')[2])} 예약`} 
+                value={reservations.filter((r) => r.date === listDate).length} 
+                color="text-sky-600" 
                 isActive={filterDateMode === 'today' && filterStatus === ''}
                 onClick={() => { setFilterDateMode('today'); setFilterStatus(''); setFilterTherapist(''); }} />
-              <StatCard label="수납 대기" value={allDone} color="text-amber-600" highlight={allDone > 0} 
+              <StatCard 
+                label="수납 대기" 
+                value={reservations.filter(r => r.status === 'done' && (filterDateMode === 'today' ? r.date === listDate : filterDateMode === 'month' ? r.date.startsWith(listMonth) : true)).length} 
+                color="text-amber-600" 
+                highlight={reservations.filter(r => r.status === 'done' && (filterDateMode === 'today' ? r.date === listDate : filterDateMode === 'month' ? r.date.startsWith(listMonth) : true)).length > 0} 
                 isActive={filterStatus === 'done'}
-                onClick={() => { setFilterDateMode('all'); setFilterStatus('done'); setFilterTherapist(''); }} />
+                onClick={() => { setFilterStatus('done'); }} />
               <StatCard label={`${parseInt(listMonth.split('-')[1])}월 예약`} value={reservations.filter((r) => r.date.startsWith(listMonth)).length} color="text-slate-700" 
                 isActive={filterDateMode === 'month' && filterStatus === ''}
                 onClick={() => { setFilterDateMode('month'); setFilterStatus(''); setFilterTherapist(''); }} />
