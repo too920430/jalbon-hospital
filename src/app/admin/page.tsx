@@ -23,6 +23,11 @@ export default function AdminPage() {
   // Existing state
   const [filterTherapist, setFilterTherapist] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [filterDateMode, setFilterDateMode] = useState<'month' | 'today' | 'all'>('today');
+  const [listMonth, setListMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [maxBeds, setMaxBeds] = useState(5);
 
   // Edit modal state
@@ -124,7 +129,9 @@ export default function AdminPage() {
     total: reservations.filter((r) => r.therapist_id === t.id).length,
   }));
 
-  const filtered = thisMonthReservations.filter((r) => {
+  const filtered = reservations.filter((r) => {
+    if (filterDateMode === 'month' && !r.date.startsWith(listMonth)) return false;
+    if (filterDateMode === 'today' && r.date !== today) return false;
     if (filterTherapist && r.therapist_id !== filterTherapist) return false;
     if (filterStatus && r.status !== filterStatus) return false;
     return true;
@@ -380,9 +387,15 @@ export default function AdminPage() {
           <div className="space-y-6 animate-fade-in-up">
             {/* Overview stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <StatCard label="오늘 전체" value={todayAll.length} color="text-sky-600" />
-              <StatCard label="승인 대기" value={todayPending} color="text-amber-600" highlight={todayPending > 0} />
-              <StatCard label="전체 예약" value={reservations.length} color="text-slate-700" />
+              <StatCard label="오늘 전체" value={todayAll.length} color="text-sky-600" 
+                isActive={filterDateMode === 'today' && filterStatus === ''}
+                onClick={() => { setFilterDateMode('today'); setFilterStatus(''); setFilterTherapist(''); }} />
+              <StatCard label="승인 대기" value={todayPending} color="text-amber-600" highlight={todayPending > 0} 
+                isActive={filterStatus === 'pending'}
+                onClick={() => { setFilterDateMode('all'); setFilterStatus('pending'); setFilterTherapist(''); }} />
+              <StatCard label="전체 예약" value={reservations.length} color="text-slate-700" 
+                isActive={filterDateMode === 'all' && filterStatus === ''}
+                onClick={() => { setFilterDateMode('all'); setFilterStatus(''); setFilterTherapist(''); }} />
               <StatCard label="치료실 침대" value={maxBeds} color="text-emerald-600" />
             </div>
 
@@ -402,6 +415,22 @@ export default function AdminPage() {
                     </div>
                   </div>
                 ))}
+                {(() => {
+                  const unassignedThisMonth = thisMonthReservations.filter(r => r.therapist_id === null).length;
+                  const unassignedTotal = reservations.filter(r => r.therapist_id === null).length;
+                  if (unassignedTotal > 0) {
+                    return (
+                      <div key="unassigned" className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold bg-slate-400">?</div>
+                        <div>
+                          <p className="font-semibold text-slate-700 text-sm">치료사 미정</p>
+                          <p className="text-xs text-slate-500">이번 달 <strong className="text-sky-600">{unassignedThisMonth}</strong>건 · 전체 {unassignedTotal}건</p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </div>
 
@@ -422,10 +451,17 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* This Month's Reservations */}
+            {/* Reservation List */}
             <div className="card">
               <div className="flex flex-wrap items-center gap-3 mb-4">
-                <h2 className="font-bold text-slate-700 flex-1">이번 달 예약 목록</h2>
+                <h2 className="font-bold text-slate-700 flex-1 flex items-center gap-2">
+                  <span>예약 목록</span>
+                  <input type="month" className="input-field w-auto text-sm py-1 px-2 cursor-pointer hover:bg-slate-50 transition-colors"
+                         value={listMonth} onChange={(e) => {
+                           setListMonth(e.target.value);
+                           setFilterDateMode('month');
+                         }} />
+                </h2>
                 <select id="filter-therapist" className="input-field w-auto text-sm py-2"
                         value={filterTherapist} onChange={(e) => setFilterTherapist(e.target.value)}>
                   <option value="">전체 치료사</option>
@@ -547,6 +583,25 @@ export default function AdminPage() {
                   </div>
                 );
               })}
+              {(() => {
+                const unassignedCount = monthlyReservations.filter(r => r.therapist_id === null).length;
+                if (unassignedCount > 0) {
+                  return (
+                    <div
+                      key="unassigned"
+                      onClick={() => setSelectedTherapistId('unassigned')}
+                      className={`p-4 rounded-2xl border text-center transition-all cursor-pointer ${
+                        selectedTherapistId === 'unassigned' ? 'border-sky-400 bg-sky-50 shadow-md ring-2 ring-sky-100' : 'border-slate-100 bg-white hover:border-sky-200'
+                      }`}
+                    >
+                      <div className="w-10 h-10 mx-auto rounded-xl flex items-center justify-center text-white font-bold mb-2 shadow-sm bg-slate-400">?</div>
+                      <p className="font-semibold text-slate-700 text-sm">치료사 미정</p>
+                      <p className="text-sky-600 font-bold mt-1 text-lg">{unassignedCount}<span className="text-xs text-slate-400 font-normal ml-0.5">건</span></p>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             <div className="card p-4">
@@ -555,7 +610,7 @@ export default function AdminPage() {
                   일별 예약 현황
                   {selectedTherapistId && (
                     <span className="ml-2 text-sm font-medium text-sky-600">
-                      ({therapists.find(t => t.id === selectedTherapistId)?.name} 치료사 기준)
+                      ({selectedTherapistId === 'unassigned' ? '미정' : therapists.find(t => t.id === selectedTherapistId)?.name} 치료사 기준)
                     </span>
                   )}
                   {!selectedTherapistId && (
@@ -574,7 +629,13 @@ export default function AdminPage() {
                   
                   const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                   let dayRes = monthlyReservations.filter(r => r.date === dateStr);
-                  if (selectedTherapistId) dayRes = dayRes.filter(r => r.therapist_id === selectedTherapistId);
+                  if (selectedTherapistId) {
+                    if (selectedTherapistId === 'unassigned') {
+                      dayRes = dayRes.filter(r => r.therapist_id === null);
+                    } else {
+                      dayRes = dayRes.filter(r => r.therapist_id === selectedTherapistId);
+                    }
+                  }
 
                   const count = dayRes.length;
                   const isToday = dateStr === today;
@@ -679,11 +740,11 @@ export default function AdminPage() {
   );
 }
 
-function StatCard({ label, value, color, highlight }: {
-  label: string; value: number; color: string; highlight?: boolean;
+function StatCard({ label, value, color, highlight, onClick, isActive }: {
+  label: string; value: number; color: string; highlight?: boolean; onClick?: () => void; isActive?: boolean;
 }) {
   return (
-    <div className={`card text-center py-4 ${highlight ? 'border-2 border-amber-300 bg-amber-50' : ''}`}>
+    <div onClick={onClick} className={`card text-center py-4 transition-all ${onClick ? 'cursor-pointer hover:shadow-md hover:-translate-y-0.5' : ''} ${highlight ? 'border-2 border-amber-300 bg-amber-50' : ''} ${isActive ? 'ring-2 ring-sky-400 shadow-md bg-sky-50' : ''}`}>
       <div className={`text-3xl font-extrabold ${color}`}>{value}</div>
       <div className="text-xs text-slate-500 mt-1">{label}</div>
     </div>
