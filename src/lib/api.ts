@@ -1,6 +1,6 @@
 'use client';
 
-import { Reservation, Therapist, BlockedSlot, AuditLog, ActionType } from './types';
+import { Reservation, Therapist, BlockedSlot, AuditLog, ActionType, SmsLog } from './types';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { MOCK_THERAPISTS } from './mockData';
 import { isSlotOverlapping } from './slots';
@@ -280,6 +280,9 @@ export async function updateReservationStatus(
         await insertAuditLog('TREATMENT_COMPLETED', '치료사', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
       } else if (status === 'paid') {
         await insertAuditLog('PAYMENT_COMPLETED', '관리자', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
+      } else if (status === 'approved') {
+        const msg = `[잘본병원] ${resToUpdate.patient_name}님의 예약(${resToUpdate.date} ${resToUpdate.start_time.slice(0,5)})이 확정되었습니다.`;
+        await insertSmsLog(resToUpdate.patient_name, resToUpdate.patient_phone, msg, '치료사');
       }
     }
     return true;
@@ -305,6 +308,9 @@ export async function updateReservationStatus(
       await insertAuditLog('RESERVATION_CANCELED', thName, { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
     } else if (status === 'done') {
       await insertAuditLog('TREATMENT_COMPLETED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
+    } else if (status === 'approved') {
+      const msg = `[잘본병원] ${resToUpdate.patient_name}님의 예약(${resToUpdate.date} ${resToUpdate.start_time.slice(0,5)})이 ${thName}님께 확정되었습니다.`;
+      await insertSmsLog(resToUpdate.patient_name, resToUpdate.patient_phone, msg, thName);
     }
     // PAYMENT_COMPLETED 로그는 admin page에서 직접 삽입 (중복 방지)
   }
@@ -493,4 +499,54 @@ export async function updateTherapistIncentive(therapistId: string, incentive: n
     
   if (error) return { success: false, error: error.message };
   return { success: true };
+}
+
+// ─── SMS/알림톡 발송 모의 API ─────────────────────────
+export async function insertSmsLog(
+  patientName: string,
+  patientPhone: string,
+  message: string,
+  sentBy: string
+): Promise<void> {
+  if (!isSupabaseConfigured) {
+    const logs = getLocalSmsLogs();
+    logs.push({
+      id: `sms-${Date.now()}`,
+      patient_name: patientName,
+      patient_phone: patientPhone,
+      message,
+      sent_by: sentBy,
+      status: 'success',
+      created_at: new Date().toISOString()
+    });
+    localStorage.setItem('jalbon_sms_logs', JSON.stringify(logs));
+    return;
+  }
+  
+  await supabase.from('sms_logs').insert({
+    patient_name: patientName,
+    patient_phone: patientPhone,
+    message,
+    sent_by: sentBy
+  });
+}
+
+export async function getSmsLogs(): Promise<SmsLog[]> {
+  if (!isSupabaseConfigured) {
+    return getLocalSmsLogs().reverse();
+  }
+  const { data } = await supabase
+    .from('sms_logs')
+    .select('*')
+    .order('created_at', { ascending: false });
+  return (data || []) as SmsLog[];
+}
+
+function getLocalSmsLogs(): SmsLog[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem('jalbon_sms_logs') || '[]');
+  } catch {
+    return [];
+  }
 }

@@ -165,8 +165,8 @@ export default function TherapistDashboard() {
         <div className="grid grid-cols-4 gap-2">
           {([
             { id: 'today',    label: '오늘 예약',  count: todayRes.length,    color: 'text-sky-600'   },
-            { id: 'pending',  label: '승인 대기',  count: pendingRes.length,  color: 'text-amber-600' },
-            { id: 'approved', label: '치료 확정',  count: approvedRes.length, color: 'text-emerald-600' },
+            { id: 'pending',  label: '예약 승인 대기', count: pendingRes.length,  color: 'text-amber-600' },
+            { id: 'approved', label: '치료 완료',  count: approvedRes.length, color: 'text-emerald-600' },
             { id: 'all',      label: '전체 예약',  count: null,               color: 'text-slate-600' },
           ] as const).map(t => (
             <button

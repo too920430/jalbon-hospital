@@ -88,3 +88,17 @@ alter table audit_logs enable row level security;
 create policy "audit_logs_insert" on audit_logs for insert with check (true);
 create policy "audit_logs_read" on audit_logs for select using (true);
 create policy "audit_logs_delete" on audit_logs for delete using (true);
+
+-- SMS/알림톡 발송 내역 테이블 (알리고 연동 모의용)
+create table if not exists sms_logs (
+  id             uuid primary key default gen_random_uuid(),
+  patient_name   text not null,
+  patient_phone  text not null,
+  message        text not null,
+  sent_by        text not null,
+  status         text not null default 'success',
+  created_at     timestamptz default now()
+);
+
+alter table sms_logs enable row level security;
+create policy "sms_logs_all" on sms_logs for all using (true);

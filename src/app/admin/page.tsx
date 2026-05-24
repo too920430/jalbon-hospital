@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Reservation, Therapist, AuditLog } from '@/lib/types';
-import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs } from '@/lib/api';
+import { Reservation, Therapist, AuditLog, SmsLog } from '@/lib/types';
+import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
@@ -41,7 +41,36 @@ export default function AdminPage() {
   const [editSlotAvailability, setEditSlotAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
 
   // Tabs & Dates
-  const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly' | 'logs' | 'patients' | 'settlement'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly' | 'logs' | 'patients' | 'settlement' | 'sms'>('overview');
+
+  const downloadCSV = (data: any[], filename: string) => {
+    if (data.length === 0) {
+      alert('다운로드할 데이터가 없습니다.');
+      return;
+    }
+    const headers = Object.keys(data[0]);
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => 
+        headers.map(header => {
+          let cell = row[header] === null || row[header] === undefined ? '' : String(row[header]);
+          if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+            cell = `"${cell.replace(/"/g, '""')}"`;
+          }
+          return cell;
+        }).join(',')
+      )
+    ].join('\n');
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [selectedTherapistId, setSelectedTherapistId] = useState<string | null>(null);
@@ -75,6 +104,7 @@ export default function AdminPage() {
 
   // Logs
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [smsLogs, setSmsLogs] = useState<SmsLog[]>([]);
   const [logFilter, setLogFilter] = useState<'all' | 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED'>('all');
 
   const [pickerType, setPickerType] = useState<'list' | 'monthly' | 'settlement' | null>(null);
@@ -90,10 +120,11 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [res, ths, logs] = await Promise.all([getAllReservations(), getTherapists(), getAuditLogs()]);
+    const [res, ths, logs, sms] = await Promise.all([getAllReservations(), getTherapists(), getAuditLogs(), getSmsLogs()]);
     setReservations(res);
     setTherapists(ths);
     setAuditLogs(logs);
+    setSmsLogs(sms);
     setLoading(false);
   };
 
@@ -607,6 +638,13 @@ export default function AdminPage() {
           >
             전체 로그
           </button>
+          <button
+            onClick={() => setAdminTab('sms')}
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
+              ${adminTab === 'sms' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            알림 내역
+          </button>
         </div>
 
         {/* =========================================================================
@@ -616,15 +654,15 @@ export default function AdminPage() {
           <div className="space-y-6 animate-fade-in-up">
             {/* Overview stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <StatCard label="오늘 전체" value={todayAll.length} color="text-sky-600" 
+              <StatCard label="오늘 예약" value={todayAll.length} color="text-sky-600" 
                 isActive={filterDateMode === 'today' && filterStatus === ''}
                 onClick={() => { setFilterDateMode('today'); setFilterStatus(''); setFilterTherapist(''); }} />
               <StatCard label="수납 대기" value={allDone} color="text-amber-600" highlight={allDone > 0} 
                 isActive={filterStatus === 'done'}
                 onClick={() => { setFilterDateMode('all'); setFilterStatus('done'); setFilterTherapist(''); }} />
-              <StatCard label="전체 예약" value={reservations.length} color="text-slate-700" 
-                isActive={filterDateMode === 'all' && filterStatus === ''}
-                onClick={() => { setFilterDateMode('all'); setFilterStatus(''); setFilterTherapist(''); }} />
+              <StatCard label="이번달 예약" value={thisMonthReservations.length} color="text-slate-700" 
+                isActive={filterDateMode === 'month' && filterStatus === ''}
+                onClick={() => { setFilterDateMode('month'); setFilterStatus(''); setFilterTherapist(''); }} />
             </div>
 
             {/* Therapist stats (This Month) */}
@@ -634,7 +672,7 @@ export default function AdminPage() {
               <div className="grid grid-cols-2 gap-3">
                 {therapistStats.map(({ therapist: t, thisMonth, total }) => (
                   <div key={t.id} 
-                       onClick={() => setFilterTherapist(t.id)}
+                       onClick={() => { setFilterTherapist(t.id); setFilterDateMode('month'); setFilterStatus(''); }}
                        onDoubleClick={() => setFilterTherapist('')}
                        className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-colors border ${filterTherapist === t.id ? 'border-sky-400 bg-sky-50 shadow-sm' : 'border-transparent bg-slate-50 hover:bg-slate-100'}`}>
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold"
@@ -676,16 +714,16 @@ export default function AdminPage() {
                       d.setDate(d.getDate() - 1);
                       setListDate(toDateStr(d));
                     }} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">◀</button>
-                    <div className="relative flex items-center justify-center cursor-pointer hover:text-sky-600 transition-colors">
+                    <div className="relative flex items-center justify-center cursor-pointer hover:text-sky-600 transition-colors w-24">
+                      <h2 className="font-extrabold text-slate-700 text-center text-sm pointer-events-none">
+                        {listDate.split('-')[0]}.{listDate.split('-')[1]}.{listDate.split('-')[2]}
+                      </h2>
                       <input 
                         type="date" 
                         value={listDate} 
                         onChange={(e) => setListDate(e.target.value)}
                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                       />
-                      <h2 className="font-extrabold text-slate-700 min-w-[90px] text-center text-sm">
-                        {listDate.split('-')[0]}.{listDate.split('-')[1]}.{listDate.split('-')[2]}
-                      </h2>
                     </div>
                     <button onClick={() => {
                       const d = new Date(listDate);
@@ -1129,18 +1167,32 @@ export default function AdminPage() {
         ========================================================================= */}
         {adminTab === 'patients' && (
           <div className="space-y-6 animate-fade-in-up">
-            <div className="flex justify-between items-end">
+            <div className="flex justify-between items-end flex-wrap gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-800">환자 관리</h2>
                 <p className="text-sm text-slate-500">총 {patientsList.length}명의 환자가 방문했습니다.</p>
               </div>
-              <input
-                type="text"
-                placeholder="이름 또는 전화번호 검색"
-                className="input-field max-w-[200px]"
-                value={patientSearch}
-                onChange={(e) => setPatientSearch(e.target.value)}
-              />
+              <div className="flex gap-2">
+                <button onClick={() => {
+                  const data = patientsList.map(p => ({
+                    '환자명': p.name,
+                    '전화번호': p.phone,
+                    '방문횟수': p.totalCount,
+                    '최근방문일': p.latestDate,
+                    '상태': STATUS_MAP[p.latestStatus]?.label || '알수없음'
+                  }));
+                  downloadCSV(data, '환자목록');
+                }} className="bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 font-bold px-4 rounded-xl text-sm transition-colors">
+                  📥 엑셀 다운로드
+                </button>
+                <input
+                  type="text"
+                  placeholder="이름 또는 전화번호 검색"
+                  className="input-field max-w-[200px]"
+                  value={patientSearch}
+                  onChange={(e) => setPatientSearch(e.target.value)}
+                />
+              </div>
             </div>
 
             <div className="card overflow-hidden p-0">
@@ -1348,17 +1400,32 @@ export default function AdminPage() {
                 <h2 className="text-xl font-bold text-slate-800">인센티브 정산 관리</h2>
                 <p className="text-sm text-slate-500">수납 완료된 건을 기준으로 단가와 3.3% 세금을 자동 계산합니다.</p>
               </div>
-              <div className="flex items-center gap-4 bg-white shadow-sm px-5 py-2 rounded-2xl border border-slate-100">
-                <button onClick={handleSettlementMonthPrev} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">◀</button>
-                <div 
-                  className="relative flex items-center justify-center cursor-pointer hover:text-sky-600 transition-colors"
-                  onClick={() => setPickerType('settlement')}
-                >
-                  <h2 className="font-extrabold text-xl text-slate-700 min-w-[110px] text-center">
-                    {settlementMonth.split('-')[0]}년 {settlementMonth.split('-')[1]}월
-                  </h2>
+              <div className="flex gap-2">
+                <button onClick={() => {
+                  const data = settlementStats.map(stat => ({
+                    '치료사': stat.therapist.name,
+                    '이번달 수납완료': stat.count,
+                    '인센티브 단가': stat.therapist.incentive,
+                    '총 인센티브 (세전)': stat.totalPreTax,
+                    '세금 (3.3%)': stat.tax,
+                    '실 지급액': stat.totalPostTax
+                  }));
+                  downloadCSV(data, `인센티브_정산내역_${settlementMonth}`);
+                }} className="bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 font-bold px-4 rounded-xl text-sm transition-colors h-[42px]">
+                  📥 엑셀 다운로드
+                </button>
+                <div className="flex items-center gap-4 bg-white shadow-sm px-5 py-2 rounded-2xl border border-slate-100">
+                  <button onClick={handleSettlementMonthPrev} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">◀</button>
+                  <div 
+                    className="relative flex items-center justify-center cursor-pointer hover:text-sky-600 transition-colors"
+                    onClick={() => setPickerType('settlement')}
+                  >
+                    <h2 className="font-extrabold text-xl text-slate-700 min-w-[110px] text-center">
+                      {settlementMonth.split('-')[0]}년 {settlementMonth.split('-')[1]}월
+                    </h2>
+                  </div>
+                  <button onClick={handleSettlementMonthNext} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">▶</button>
                 </div>
-                <button onClick={handleSettlementMonthNext} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">▶</button>
               </div>
             </div>
 
@@ -1456,6 +1523,65 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* =========================================================================
+            탭 7: 알림 내역 (SMS/알림톡)
+        ========================================================================= */}
+        {adminTab === 'sms' && (
+          <div className="space-y-6 animate-fade-in-up">
+            <div className="flex justify-between items-end">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">환자 알림 내역</h2>
+                <p className="text-sm text-slate-500">발송된 알림톡/문자 메시지 기록입니다.</p>
+              </div>
+            </div>
+
+            <div className="card overflow-hidden p-0">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[600px]">
+                  <thead>
+                    <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
+                      <th className="p-4 font-bold w-40">발송 일시</th>
+                      <th className="p-4 font-bold w-24">상태</th>
+                      <th className="p-4 font-bold w-32">수신자</th>
+                      <th className="p-4 font-bold w-32">발신자</th>
+                      <th className="p-4 font-bold">메시지 내용</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 text-sm">
+                    {smsLogs.map((log) => {
+                      const date = new Date(log.created_at);
+                      const dateStr = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')} ${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+                      return (
+                        <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="p-4 text-slate-400 font-medium whitespace-nowrap">{dateStr}</td>
+                          <td className="p-4">
+                            <span className="bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full text-[10px] font-bold">발송성공</span>
+                          </td>
+                          <td className="p-4">
+                            <div className="font-bold text-slate-700">{log.patient_name}</div>
+                            <div className="text-xs text-slate-400">{log.patient_phone}</div>
+                          </td>
+                          <td className="p-4 font-semibold text-slate-600">{log.sent_by}</td>
+                          <td className="p-4 text-slate-600 leading-relaxed text-xs">
+                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 max-w-lg break-keep">
+                              {log.message}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {smsLogs.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="p-8 text-center text-slate-400">발송된 알림 내역이 없습니다.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         )}
 

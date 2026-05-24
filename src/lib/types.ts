@@ -54,3 +54,13 @@ export interface SlotAvailability {
   bookedCount: number;
   maxBeds: number;
 }
+
+export interface SmsLog {
+  id: string;
+  patient_name: string;
+  patient_phone: string;
+  message: string;
+  sent_by: string;
+  status: string;
+  created_at: string;
+}
