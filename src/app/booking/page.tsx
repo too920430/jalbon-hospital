@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BookingFormData, Therapist } from '@/lib/types';
 import { getAvailableSlots, formatTime, formatDate, toDateStr, isOpenDay, formatTherapistName, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
-import { getTherapists, createReservation, getSlotAvailability, getMaxBeds } from '@/lib/api';
+import { getTherapists, createReservation, getSlotAvailability, getMaxBeds, checkPatientPin } from '@/lib/api';
 
 const STEPS = ['내 정보', '치료 시간', '치료사', '날짜', '시간', '확인'];
 
@@ -99,6 +99,20 @@ export default function BookingPage() {
       formatted = `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
     }
     setForm((f) => ({ ...f, patientPhone: formatted }));
+  };
+
+  const handleNextStep = async () => {
+    if (step === 1) {
+      setLoading(true);
+      setError('');
+      const check = await checkPatientPin(form.patientPhone, form.pin);
+      setLoading(false);
+      if (!check.valid) {
+        setError(check.error || '비밀번호가 일치하지 않습니다.');
+        return;
+      }
+    }
+    setStep(s => s + 1);
   };
 
   const handleSubmit = async () => {
@@ -546,11 +560,11 @@ export default function BookingPage() {
           {step < 6 ? (
             <button
               id="next-step-btn"
-              onClick={() => setStep(s => s + 1)}
-              disabled={!canNext()}
+              onClick={handleNextStep}
+              disabled={loading || !canNext()}
               className="btn-primary"
             >
-              다음
+              {loading && step === 1 ? '확인 중...' : '다음'}
             </button>
           ) : (
             <button

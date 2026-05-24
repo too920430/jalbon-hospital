@@ -85,12 +85,17 @@ export async function createReservation(params: {
   }
 
   // 신환 여부 및 비밀번호 체크
-  const { data: pastRes } = await supabase
+  const { data: pastRes, error: fetchError } = await supabase
     .from('reservations')
     .select('pin')
     .eq('patient_phone', params.patientPhone)
     .order('created_at', { ascending: false })
     .limit(1);
+
+  if (fetchError) {
+    console.error('Failed to fetch past reservations:', fetchError);
+    return { success: false, error: '이전 예약 내역을 확인하는 중 오류가 발생했습니다: ' + fetchError.message };
+  }
 
   if (pastRes && pastRes.length > 0) {
     if (pastRes[0].pin !== params.pin) {
@@ -113,6 +118,35 @@ export async function createReservation(params: {
   }
   if (error) return { success: false, error: error.message };
   return { success: true };
+}
+
+// ─── 기존 환자 비밀번호(PIN) 사전 검증 ────────────────────────
+export async function checkPatientPin(phone: string, pin: string): Promise<{ valid: boolean; error?: string }> {
+  if (!isSupabaseConfigured) {
+    const reservations = getLocalReservations();
+    const pastRes = reservations.filter(r => r.patient_phone === phone);
+    if (pastRes.length > 0) {
+      const latest = pastRes[pastRes.length - 1];
+      if (latest.pin !== pin) {
+        return { valid: false, error: '이전에 사용하신 예약 비밀번호와 다릅니다.' };
+      }
+    }
+    return { valid: true };
+  }
+
+  const { data: pastRes } = await supabase
+    .from('reservations')
+    .select('pin')
+    .eq('patient_phone', phone)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (pastRes && pastRes.length > 0) {
+    if (pastRes[0].pin !== pin) {
+      return { valid: false, error: '이전에 사용하신 예약 비밀번호와 다릅니다.' };
+    }
+  }
+  return { valid: true };
 }
 
 // ─── 예약 조회 (환자) ────────────────────────────────
