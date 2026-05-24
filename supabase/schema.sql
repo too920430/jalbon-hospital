@@ -23,7 +23,7 @@ create table if not exists reservations (
   start_time     time not null,
   duration       integer not null check (duration in (30, 50)),
   status         text not null default 'pending'
-                   check (status in ('pending','approved','rejected','done')),
+                   check (status in ('pending','approved','rejected','done','paid')),
   pin            text not null default '0000',
   note           text,
   created_at     timestamptz default now()

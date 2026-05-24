@@ -9,9 +9,10 @@ import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOcc
 
 const STATUS_MAP = {
   pending:  { label: '승인 대기', color: 'bg-amber-100 text-amber-700' },
-  approved: { label: '확정',      color: 'bg-emerald-100 text-emerald-700' },
-  rejected: { label: '거절',      color: 'bg-red-100 text-red-600'      },
-  done:     { label: '완료',      color: 'bg-slate-100 text-slate-600'  },
+  approved: { label: '예약 확정', color: 'bg-emerald-100 text-emerald-700' },
+  rejected: { label: '거절됨',   color: 'bg-red-100 text-red-600'      },
+  done:     { label: '수납 대기', color: 'bg-blue-100 text-blue-600'  },
+  paid:     { label: '수납/치료 완료', color: 'bg-slate-100 text-slate-600' },
 };
 
 export default function AdminPage() {
@@ -148,10 +149,30 @@ export default function AdminPage() {
   const selectedMonthStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}`;
   const monthlyReservations = reservations.filter(r => r.date.startsWith(selectedMonthStr));
 
-  const monthlyTherapistStats = therapists.map((t) => ({
-    therapist: t,
-    count: monthlyReservations.filter((r) => r.therapist_id === t.id).length,
-  }));
+  const monthlyTherapistStats = therapists.map((t) => {
+    const tRes = monthlyReservations.filter((r) => r.therapist_id === t.id && r.status === 'paid');
+    
+    // Calculate new vs existing for this month
+    let newCount = 0;
+    let existCount = 0;
+
+    tRes.forEach(r => {
+      const pastPaid = reservations.filter(
+        past => past.patient_phone === r.patient_phone && 
+                past.status === 'paid' && 
+                past.date < r.date
+      );
+      if (pastPaid.length > 0) existCount++;
+      else newCount++;
+    });
+
+    return {
+      therapist: t,
+      count: tRes.length,
+      newCount,
+      existCount
+    };
+  });
 
   const prevMonth = () => setCurrentMonth(new Date(calYear, calMonth - 1, 1));
   const nextMonth = () => setCurrentMonth(new Date(calYear, calMonth + 1, 1));
@@ -168,7 +189,7 @@ export default function AdminPage() {
 
   const yearlyReservations = reservations.filter(r => r.date.startsWith(String(currentYear)));
   const yearlyTherapistStats = therapists.map((t) => {
-    const tRes = yearlyReservations.filter(r => r.therapist_id === t.id);
+    const tRes = yearlyReservations.filter(r => r.therapist_id === t.id && r.status === 'paid');
     const months = Array.from({length: 12}).map((_, i) => {
       const mStr = `${currentYear}-${String(i + 1).padStart(2, '0')}`;
       return tRes.filter(r => r.date.startsWith(mStr)).length;
@@ -546,12 +567,27 @@ export default function AdminPage() {
                                 </span>
                               </td>
                               <td className="px-4 py-3">
-                                <button
-                                  onClick={() => startEdit(res)}
-                                  className="text-xs text-sky-600 font-semibold px-2 py-1 rounded-lg border border-sky-200 hover:bg-sky-50 transition-colors"
-                                >
-                                  📅 수정
-                                </button>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => startEdit(res)}
+                                    className="text-xs text-sky-600 font-semibold px-2 py-1 rounded-lg border border-sky-200 hover:bg-sky-50 transition-colors"
+                                  >
+                                    📅 수정
+                                  </button>
+                                  {res.status === 'done' && (
+                                    <button
+                                      onClick={async () => {
+                                        if (confirm('이 예약의 수납을 확인하셨습니까? (통계에 반영됩니다)')) {
+                                          await updateReservationStatus(res.id, 'paid');
+                                          await loadData();
+                                        }
+                                      }}
+                                      className="text-xs text-white bg-blue-500 font-semibold px-2 py-1 rounded-lg hover:bg-blue-600 transition-colors"
+                                    >
+                                      수납 확인
+                                    </button>
+                                  )}
+                                </div>
                               </td>
                             </tr>
                           );
@@ -576,7 +612,7 @@ export default function AdminPage() {
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {monthlyTherapistStats.map(({ therapist: t, count }) => {
+              {monthlyTherapistStats.map(({ therapist: t, count, newCount, existCount }) => {
                 const isSelected = selectedTherapistId === t.id;
                 return (
                   <div
@@ -592,6 +628,10 @@ export default function AdminPage() {
                     </div>
                     <p className="font-semibold text-slate-700 text-sm">{t.name}</p>
                     <p className="text-sky-600 font-bold mt-1 text-lg">{count}<span className="text-xs text-slate-400 font-normal ml-0.5">건</span></p>
+                    <div className="mt-2 text-[10px] text-slate-500 flex justify-center gap-2">
+                      <span className="bg-sky-50 text-sky-600 px-1.5 py-0.5 rounded">신환: {newCount}</span>
+                      <span className="bg-slate-100 px-1.5 py-0.5 rounded">재진: {existCount}</span>
+                    </div>
                   </div>
                 );
               })}
@@ -764,7 +804,8 @@ export default function AdminPage() {
                     { id: 'PATIENT_BOOKING', label: '환자 예약' },
                     { id: 'THERAPIST_LOGIN', label: '치료사 로그인' },
                     { id: 'RESERVATION_CANCELED', label: '예약 취소' },
-                    { id: 'TREATMENT_COMPLETED', label: '치료 완료' }
+                    { id: 'TREATMENT_COMPLETED', label: '치료 완료' },
+                    { id: 'PAYMENT_COMPLETED', label: '수납 확정' }
                   ].map(f => (
                     <button
                       key={f.id}
@@ -812,8 +853,13 @@ export default function AdminPage() {
                     } else if (log.action_type === 'TREATMENT_COMPLETED') {
                       icon = '✅';
                       bgColor = 'bg-blue-50';
-                      title = '치료 완료';
-                      desc = `${log.actor_name}님이 ${log.details?.patientName || ''} 환자의 예약(${log.details?.date || ''} ${log.details?.time?.slice(0,5) || ''})을 완료 처리했습니다.`;
+                      title = '치료 완료 (수납 대기)';
+                      desc = `${log.actor_name}님이 ${log.details?.patientName || ''} 환자의 예약(${log.details?.date || ''} ${log.details?.time?.slice(0,5) || ''})을 치료 완료 처리했습니다.`;
+                    } else if (log.action_type === 'PAYMENT_COMPLETED') {
+                      icon = '💰';
+                      bgColor = 'bg-indigo-50';
+                      title = '수납 및 최종 완료';
+                      desc = `${log.actor_name}님이 ${log.details?.patientName || ''} 환자의 예약(${log.details?.date || ''} ${log.details?.time?.slice(0,5) || ''})을 최종 수납 처리했습니다.`;
                     }
                     
                     return (
@@ -825,6 +871,12 @@ export default function AdminPage() {
                             <span className="text-[10px] text-slate-400 font-medium bg-white px-2 py-0.5 rounded-full border border-slate-100 whitespace-nowrap">{dateStr}</span>
                           </div>
                           <p className="text-xs text-slate-600 font-medium break-keep leading-relaxed">{desc}</p>
+                          {(log.details?.ip || log.details?.userAgent) && (
+                            <div className="mt-2 text-[10px] text-slate-400 bg-white p-2 rounded border border-slate-100 flex flex-col gap-0.5">
+                              {log.details.ip && <span><strong className="text-slate-500">IP:</strong> {log.details.ip}</span>}
+                              {log.details.userAgent && <span className="truncate"><strong className="text-slate-500">기기:</strong> {log.details.userAgent}</span>}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );

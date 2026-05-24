@@ -16,7 +16,7 @@ export interface Reservation {
   date: string;
   start_time: string;
   duration: 30 | 50;
-  status: 'pending' | 'approved' | 'rejected' | 'done';
+  status: 'pending' | 'approved' | 'rejected' | 'done' | 'paid';
   note?: string;
   created_at: string;
 }
@@ -37,8 +37,7 @@ export interface BookingFormData {
   therapistId: string | null; // null = 상관없음
   date: string | null;
   startTime: string | null;
-}
-export type ActionType = 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED' | 'TREATMENT_COMPLETED';
+}export type ActionType = 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED' | 'TREATMENT_COMPLETED' | 'PAYMENT_COMPLETED';
 
 export interface AuditLog {
   id: string;

@@ -53,6 +53,7 @@ export default function TherapistLoginPage() {
 
     sessionStorage.setItem('jalbon_role', 'therapist');
     sessionStorage.setItem('jalbon_therapist', JSON.stringify(therapist));
+    localStorage.setItem('jalbon_is_therapist_device', 'true');
     insertAuditLog('THERAPIST_LOGIN', therapist.name, {});
     router.push('/therapist/dashboard');
   };

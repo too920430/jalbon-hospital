@@ -32,6 +32,26 @@ export async function createReservation(params: {
   startTime: string;
   duration: 30 | 50;
 }): Promise<{ success: boolean; error?: string }> {
+  let ip = 'unknown';
+  let userAgent = 'unknown';
+  if (typeof window !== 'undefined') {
+    userAgent = navigator.userAgent;
+    try {
+      const res = await fetch('/api/ip');
+      const data = await res.json();
+      if (data.ip) ip = data.ip;
+    } catch (e) {
+      console.error('Failed to fetch IP', e);
+    }
+  }
+
+  const auditDetails = { 
+    date: params.date, 
+    time: params.startTime, 
+    ip, 
+    userAgent 
+  };
+
   if (!isSupabaseConfigured) {
     // localStorage fallback (demo mode)
     const reservations = getLocalReservations();
@@ -49,7 +69,7 @@ export async function createReservation(params: {
     };
     reservations.push(newRes);
     localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
-    insertAuditLog('PATIENT_BOOKING', params.patientName, { date: params.date, time: params.startTime });
+    insertAuditLog('PATIENT_BOOKING', params.patientName, auditDetails);
     return { success: true };
   }
 
@@ -64,7 +84,7 @@ export async function createReservation(params: {
     status: 'pending',
   });
   if (!error) {
-    insertAuditLog('PATIENT_BOOKING', params.patientName, { date: params.date, time: params.startTime });
+    insertAuditLog('PATIENT_BOOKING', params.patientName, auditDetails);
   }
   if (error) return { success: false, error: error.message };
   return { success: true };
@@ -163,7 +183,7 @@ export async function getTherapistReservations(
 // ─── 예약 상태 업데이트 ───────────────────────────────
 export async function updateReservationStatus(
   id: string,
-  status: 'approved' | 'rejected' | 'done',
+  status: 'approved' | 'rejected' | 'done' | 'paid',
   note?: string
 ): Promise<boolean> {
   let resToUpdate: any = null;
@@ -178,6 +198,8 @@ export async function updateReservationStatus(
         insertAuditLog('RESERVATION_CANCELED', '치료사', { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
       } else if (status === 'done') {
         insertAuditLog('TREATMENT_COMPLETED', '치료사', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
+      } else if (status === 'paid') {
+        insertAuditLog('PAYMENT_COMPLETED', '관리자', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
       }
     }
     return true;
@@ -197,6 +219,8 @@ export async function updateReservationStatus(
       insertAuditLog('RESERVATION_CANCELED', thName, { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
     } else if (status === 'done') {
       insertAuditLog('TREATMENT_COMPLETED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
+    } else if (status === 'paid') {
+      insertAuditLog('PAYMENT_COMPLETED', '관리자', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
     }
   }
   return !error;

@@ -13,6 +13,7 @@ export default function BookingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [isTherapistDevice, setIsTherapistDevice] = useState(false);
   const [therapists, setTherapists] = useState<Therapist[]>([]);
   const [availability, setAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
   const [maxBeds, setMaxBeds] = useState(5);
@@ -30,6 +31,9 @@ export default function BookingPage() {
   useEffect(() => {
     getTherapists().then(setTherapists);
     setMaxBeds(getMaxBeds());
+    if (localStorage.getItem('jalbon_is_therapist_device') === 'true') {
+      setIsTherapistDevice(true);
+    }
   }, []);
 
   // 날짜/치료사 변경 시 예약 현황 조회
@@ -119,6 +123,31 @@ export default function BookingPage() {
   };
 
   const selectedTherapist = therapists.find((t) => t.id === form.therapistId);
+
+  if (isTherapistDevice) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-3xl shadow-xl text-center max-w-sm w-full animate-fade-in-up border border-red-100">
+          <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
+            🚫
+          </div>
+          <h2 className="text-xl font-bold text-slate-800 mb-2">접근 제한됨</h2>
+          <p className="text-slate-600 text-sm mb-6 leading-relaxed">
+            허위 예약을 방지하기 위해 <b>치료사 기기</b>에서는 환자 예약을 직접 생성할 수 없습니다.<br/><br/>
+            환자 본인의 스마트폰이나 데스크를 이용해주세요.
+          </p>
+          <div className="space-y-2">
+            <Link href="/therapist/dashboard" className="block w-full py-3 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition-all shadow-sm">
+              치료사 대시보드로 돌아가기
+            </Link>
+            <Link href="/" className="block w-full py-3 bg-white border-2 border-slate-200 text-slate-600 hover:bg-slate-50 font-bold rounded-xl transition-all">
+              메인 홈으로 가기
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F0F9FF] flex flex-col">
