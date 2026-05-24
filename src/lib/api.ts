@@ -55,6 +55,17 @@ export async function createReservation(params: {
   if (!isSupabaseConfigured) {
     // localStorage fallback (demo mode)
     const reservations = getLocalReservations();
+    
+    // 신환 여부 및 비밀번호 체크
+    const pastRes = reservations.filter(r => r.patient_phone === params.patientPhone);
+    if (pastRes.length > 0) {
+      // 최신 예약의 PIN과 일치하는지 확인
+      const latest = pastRes[pastRes.length - 1];
+      if (latest.pin !== params.pin) {
+        return { success: false, error: '이전에 사용하신 예약 비밀번호와 다릅니다. 동일한 번호를 입력해주세요.' };
+      }
+    }
+
     const newRes: Reservation = {
       id: `res-${Date.now()}`,
       patient_name: params.patientName,
@@ -71,6 +82,20 @@ export async function createReservation(params: {
     localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
     insertAuditLog('PATIENT_BOOKING', params.patientName, auditDetails);
     return { success: true };
+  }
+
+  // 신환 여부 및 비밀번호 체크
+  const { data: pastRes } = await supabase
+    .from('reservations')
+    .select('pin')
+    .eq('patient_phone', params.patientPhone)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (pastRes && pastRes.length > 0) {
+    if (pastRes[0].pin !== params.pin) {
+      return { success: false, error: '이전에 사용하신 예약 비밀번호와 다릅니다. 동일한 번호를 입력해주세요.' };
+    }
   }
 
   const { error } = await supabase.from('reservations').insert({

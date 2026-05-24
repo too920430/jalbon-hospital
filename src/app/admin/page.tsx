@@ -160,7 +160,7 @@ export default function AdminPage() {
       const pastPaid = reservations.filter(
         past => past.patient_phone === r.patient_phone && 
                 past.status === 'paid' && 
-                past.date < r.date
+                new Date(past.created_at).getTime() < new Date(r.created_at).getTime()
       );
       if (pastPaid.length > 0) existCount++;
       else newCount++;
