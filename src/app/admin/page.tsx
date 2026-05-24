@@ -886,33 +886,39 @@ export default function AdminPage() {
             ========================================================================= */}
         {adminTab === 'monthly' && (
           <div className="space-y-6 animate-fade-in-up">
-            <div className="card flex items-center justify-between px-6 flex-wrap gap-4">
-              <div className="flex items-center gap-4">
-                <button onClick={prevMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors text-xl">◀</button>
-                <h2 className="font-extrabold text-2xl text-slate-700">
-                  {calYear}년 {calMonth + 1}월
-                </h2>
-                <button onClick={nextMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors text-xl">▶</button>
+            <div className="flex justify-between items-end flex-wrap gap-4 mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">월간 치료사 통계</h2>
+                <p className="text-sm text-slate-500">월별 치료사들의 예약 현황과 환자 리스트를 확인합니다.</p>
               </div>
-              <button 
-                onClick={() => {
-                  const csvData = monthlyReservations.map(r => {
-                    const th = therapists.find(t => t.id === r.therapist_id);
-                    return {
-                      '날짜': r.date,
-                      '시간': r.start_time,
-                      '환자명': r.patient_name,
-                      '전화번호': r.patient_phone,
-                      '담당치료사': th ? th.name : '미정',
-                      '상태': STATUS_MAP[r.status as keyof typeof STATUS_MAP]?.label || r.status,
-                    };
-                  });
-                  downloadCSV(csvData, `월간통계_${calYear}년${calMonth + 1}월`);
-                }}
-                className="btn btn-secondary !w-auto py-2 px-4 text-sm flex items-center gap-2"
-              >
-                📊 엑셀 다운로드
-              </button>
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => {
+                    const csvData = monthlyReservations.map(r => {
+                      const th = therapists.find(t => t.id === r.therapist_id);
+                      return {
+                        '날짜': r.date,
+                        '시간': r.start_time,
+                        '환자명': r.patient_name,
+                        '전화번호': r.patient_phone,
+                        '담당치료사': th ? th.name : '미정',
+                        '상태': STATUS_MAP[r.status as keyof typeof STATUS_MAP]?.label || r.status,
+                      };
+                    });
+                    downloadCSV(csvData, `월간통계_${calYear}년${calMonth + 1}월`);
+                  }}
+                  className="bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 font-bold px-4 rounded-xl text-sm transition-colors h-[42px] flex items-center gap-2"
+                >
+                  📥 엑셀 다운로드
+                </button>
+                <div className="flex items-center gap-4 bg-white shadow-sm px-5 py-2 rounded-2xl border border-slate-100">
+                  <button onClick={prevMonth} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">◀</button>
+                  <h2 className="font-extrabold text-xl text-slate-700 min-w-[110px] text-center">
+                    {calYear}년 {calMonth + 1}월
+                  </h2>
+                  <button onClick={nextMonth} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">▶</button>
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -937,7 +943,7 @@ export default function AdminPage() {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={days.filter(d => d !== null).map(day => {
                       const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                      return { day: `${day}일`, 건수: monthlyReservations.filter(r => r.date === dateStr && r.status === 'paid').length };
+                      return { day: `${day}일`, 건수: monthlyReservations.filter(r => r.date === dateStr && r.status === 'paid' && (!selectedTherapistId || r.therapist_id === selectedTherapistId)).length };
                     })}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="day" />
@@ -949,55 +955,65 @@ export default function AdminPage() {
               </div>
             </div>
             
-            {selectedTherapistId && (
-              <div className="card animate-fade-in-up mt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-slate-700">
-                    <span style={{ color: therapists.find(t => t.id === selectedTherapistId)?.color }} className="mr-1">
-                      {therapists.find(t => t.id === selectedTherapistId)?.name}
-                    </span> 
-                    치료사 예약 환자 리스트
-                  </h3>
-                  <button onClick={() => setSelectedTherapistId(null)} className="text-slate-400 hover:text-slate-600 text-sm font-semibold">닫기</button>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left text-slate-400 text-xs border-b border-slate-100">
-                        <th className="pb-2 pl-2">날짜/시간</th>
-                        <th className="pb-2">환자명</th>
-                        <th className="pb-2">연락처</th>
-                        <th className="pb-2">상태</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {monthlyReservations
-                        .filter(r => r.therapist_id === selectedTherapistId && r.status === 'paid')
-                        .sort((a, b) => (a.date + a.start_time).localeCompare(b.date + b.start_time))
-                        .map(r => (
-                          <tr key={r.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="py-2 pl-2 text-slate-600">{formatDate(r.date)} {formatTime(r.start_time)}</td>
-                            <td className="py-2 font-medium text-slate-700">{r.patient_name}</td>
-                            <td className="py-2 text-slate-500">{r.patient_phone}</td>
-                            <td className="py-2">
-                              <span className={`status-badge ${STATUS_MAP[r.status as keyof typeof STATUS_MAP]?.color || 'bg-slate-100 text-slate-600'}`}>
-                                {STATUS_MAP[r.status as keyof typeof STATUS_MAP]?.label || r.status}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      {monthlyReservations.filter(r => r.therapist_id === selectedTherapistId && r.status === 'paid').length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="py-6 text-center text-slate-400 text-sm">
-                            이번 달 완료된 예약이 없습니다.
+            <div className="card animate-fade-in-up mt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-slate-700">
+                  {selectedTherapistId ? (
+                    <>
+                      <span style={{ color: therapists.find(t => t.id === selectedTherapistId)?.color }} className="mr-1">
+                        {therapists.find(t => t.id === selectedTherapistId)?.name}
+                      </span> 
+                      치료사 예약 환자 리스트
+                    </>
+                  ) : (
+                    "해당 월 전체 예약 환자 리스트"
+                  )}
+                </h3>
+                {selectedTherapistId && (
+                  <button onClick={() => setSelectedTherapistId(null)} className="text-slate-400 hover:text-slate-600 text-sm font-semibold">선택 해제</button>
+                )}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-slate-400 text-xs border-b border-slate-100">
+                      <th className="pb-2 pl-2">날짜/시간</th>
+                      <th className="pb-2">환자명</th>
+                      <th className="pb-2">연락처</th>
+                      <th className="pb-2">담당치료사</th>
+                      <th className="pb-2">상태</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {monthlyReservations
+                      .filter(r => (!selectedTherapistId || r.therapist_id === selectedTherapistId) && r.status === 'paid')
+                      .sort((a, b) => (a.date + a.start_time).localeCompare(b.date + b.start_time))
+                      .map(r => (
+                        <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-2 pl-2 text-slate-600">{formatDate(r.date)} {formatTime(r.start_time)}</td>
+                          <td className="py-2 font-medium text-slate-700">{r.patient_name}</td>
+                          <td className="py-2 text-slate-500">{r.patient_phone}</td>
+                          <td className="py-2 text-slate-600">
+                            {therapists.find(t => t.id === r.therapist_id)?.name || '미정'}
+                          </td>
+                          <td className="py-2">
+                            <span className={`status-badge ${STATUS_MAP[r.status as keyof typeof STATUS_MAP]?.color || 'bg-slate-100 text-slate-600'}`}>
+                              {STATUS_MAP[r.status as keyof typeof STATUS_MAP]?.label || r.status}
+                            </span>
                           </td>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                      ))}
+                    {monthlyReservations.filter(r => (!selectedTherapistId || r.therapist_id === selectedTherapistId) && r.status === 'paid').length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="py-6 text-center text-slate-400 text-sm">
+                          이번 달 완료된 예약이 없습니다.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-            )}
+            </div>
           </div>
         )}
 
@@ -1008,7 +1024,12 @@ export default function AdminPage() {
           <div className="space-y-6 animate-fade-in-up">
             <div className="card space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                <h2 className="font-bold text-slate-700 text-lg">전체 로그 기록</h2>
+                <div className="flex items-center gap-4">
+                  <h2 className="font-bold text-slate-700 text-lg">전체 로그 기록</h2>
+                  <button onClick={handleDeleteLogsClick} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-3 py-1.5 rounded-lg transition-colors border border-red-200">
+                    🗑 현재 내역 삭제
+                  </button>
+                </div>
                 <div className="flex bg-slate-50 p-1 rounded-xl gap-1 overflow-x-auto">
                   {[
                     { id: 'all', label: '전체보기' },
@@ -1019,17 +1040,20 @@ export default function AdminPage() {
                     { id: 'PAYMENT_COMPLETED', label: '수납 확정' },
                     { id: 'RESERVATION_CANCELED', label: '예약 취소' },
                     { id: 'THERAPIST_LEAVE', label: '휴무 내역' }
-                  ].map(f => (
-                    <button
-                      key={f.id}
-                      onClick={() => setLogFilter(f.id as any)}
-                      className={`whitespace-nowrap px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
-                        logFilter === f.id ? 'bg-white text-sky-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100'
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
+                  ].map(f => {
+                    const count = f.id === 'all' ? auditLogs.length : auditLogs.filter(l => l.action_type === f.id).length;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => setLogFilter(f.id as any)}
+                        className={`whitespace-nowrap px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                          logFilter === f.id ? 'bg-white text-sky-600 shadow-sm border border-slate-200' : 'text-slate-500 hover:bg-slate-100'
+                        }`}
+                      >
+                        {f.label} ({count})
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               
