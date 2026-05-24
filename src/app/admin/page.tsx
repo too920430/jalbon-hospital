@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
-import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds } from '@/lib/api';
+import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds, deleteReservation } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
@@ -93,6 +93,20 @@ export default function AdminPage() {
     await updateReservationDateTime(editingRes.id, editDate, time, editDuration);
     await loadData();
     setEditingRes(null);
+    setEditSaving(false);
+  };
+
+  const handleAdminDelete = async () => {
+    if (!editingRes) return;
+    if (!confirm('정말로 이 예약을 삭제하시겠습니까? (삭제 후 복구할 수 없습니다)')) return;
+    setEditSaving(true);
+    const result = await deleteReservation(editingRes.id);
+    if (!result.success) {
+      alert('예약 삭제에 실패했습니다.\nSupabase 대시보드에서 DELETE 권한(policy) 설정이 필요합니다.');
+    } else {
+      await loadData();
+      setEditingRes(null);
+    }
     setEditSaving(false);
   };
 
@@ -282,17 +296,24 @@ export default function AdminPage() {
                 );
               })()}
             </div>
-            <div className="flex gap-3 pt-2">
+            <div className="flex gap-2 pt-2">
               <button
                 onClick={handleEditSave}
                 disabled={editSaving || !editDate || !editTime}
-                className="btn-primary flex-1"
+                className="btn-primary flex-1 text-sm py-2"
               >
                 {editSaving ? '저장 중...' : '✓ 저장'}
               </button>
               <button
+                onClick={handleAdminDelete}
+                disabled={editSaving}
+                className="bg-red-50 text-red-600 hover:bg-red-100 font-semibold rounded-xl flex-1 text-sm py-2 transition-colors border border-red-200"
+              >
+                🗑 삭제
+              </button>
+              <button
                 onClick={() => setEditingRes(null)}
-                className="btn-secondary flex-1"
+                className="btn-secondary flex-1 text-sm py-2"
               >
                 취소
               </button>
