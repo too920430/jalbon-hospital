@@ -13,7 +13,13 @@ export async function getTherapists(): Promise<Therapist[]> {
     .eq('is_active', true)
     .order('name');
   if (error) return MOCK_THERAPISTS;
-  return data as Therapist[];
+  // 센터장이 항상 맨 위에 오도록 정렬
+  const sorted = (data as Therapist[]).sort((a, b) => {
+    if (a.name.includes('센터장')) return -1;
+    if (b.name.includes('센터장')) return 1;
+    return a.name.localeCompare(b.name, 'ko');
+  });
+  return sorted;
 }
 
 // ─── 예약 생성 ───────────────────────────────────────

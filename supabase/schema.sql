@@ -50,7 +50,7 @@ insert into settings (id, max_beds) values (1, 5) on conflict do nothing;
 -- 초기 치료사 데이터 (PIN은 실제 운영 전 변경하세요!)
 -- ================================================
 insert into therapists (name, color, pin) values
-  ('이지훈', '#0EA5E9', 'wkfqhs0001'),
+  ('이지훈 센터장', '#0EA5E9', 'wkfqhs0001'),
   ('김보인', '#10B981', 'wkfqhs0002'),
   ('허헌', '#8B5CF6', 'wkfqhs0003'),
   ('최연화', '#F59E0B', 'wkfqhs0004'),
