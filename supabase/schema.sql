@@ -40,12 +40,7 @@ create table if not exists blocked_slots (
   created_at   timestamptz default now()
 );
 
--- 설정 테이블
-create table if not exists settings (
-  id       integer primary key default 1,
-  max_beds integer not null default 5
-);
-insert into settings (id, max_beds) values (1, 5) on conflict do nothing;
+
 
 -- ================================================
 -- 초기 치료사 데이터 (PIN은 실제 운영 전 변경하세요!)

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist, AuditLog } from '@/lib/types';
-import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive } from '@/lib/api';
+import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
@@ -29,7 +29,7 @@ export default function AdminPage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [maxBeds, setMaxBeds] = useState(5);
+
 
   // Edit modal state
   const [editingRes, setEditingRes] = useState<Reservation | null>(null);
@@ -69,7 +69,7 @@ export default function AdminPage() {
       router.push('/therapist/login');
       return;
     }
-    setMaxBeds(parseInt(localStorage.getItem('jalbon_max_beds') || '5'));
+
     loadData();
   }, []);
 
@@ -82,10 +82,7 @@ export default function AdminPage() {
     setLoading(false);
   };
 
-  const saveMaxBeds = (v: number) => {
-    setMaxBeds(v);
-    localStorage.setItem('jalbon_max_beds', String(v));
-  };
+
 
   const logout = () => {
     sessionStorage.clear();
@@ -371,7 +368,7 @@ export default function AdminPage() {
               {editDate && (() => {
                 const dateObj = new Date(editDate + 'T00:00:00');
                 const slots = getAvailableSlots(dateObj, editDuration);
-                const adminMaxBeds = getMaxBeds();
+                const activeTherapistsCount = therapists.length || 1;
                 if (!isOpenDay(dateObj)) return (
                   <p className="text-xs text-red-400 text-center py-2">해당 날짜는 휴무입니다</p>
                 );
@@ -390,7 +387,7 @@ export default function AdminPage() {
                           {amSlots.map(time => {
                             const err = getSlotError(time, editDuration, dateObj);
                             const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, editingRes.id);
-                            const limit = editingRes.therapist_id ? 1 : adminMaxBeds;
+                            const limit = editingRes.therapist_id ? 1 : activeTherapistsCount;
                             const isFull = count >= limit;
                             const isSelected = editTime === time;
                             const isDisabled = isFull || err !== null;
@@ -417,7 +414,7 @@ export default function AdminPage() {
                           {pmSlots.map(time => {
                             const err = getSlotError(time, editDuration, dateObj);
                             const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, editingRes.id);
-                            const limit = editingRes.therapist_id ? 1 : adminMaxBeds;
+                            const limit = editingRes.therapist_id ? 1 : activeTherapistsCount;
                             const isFull = count >= limit;
                             const isSelected = editTime === time;
                             const isDisabled = isFull || err !== null;
@@ -574,7 +571,6 @@ export default function AdminPage() {
               <StatCard label="전체 예약" value={reservations.length} color="text-slate-700" 
                 isActive={filterDateMode === 'all' && filterStatus === ''}
                 onClick={() => { setFilterDateMode('all'); setFilterStatus(''); setFilterTherapist(''); }} />
-              <StatCard label="치료실 침대" value={maxBeds} color="text-emerald-600" />
             </div>
 
             {/* Therapist stats (This Month) */}
@@ -609,23 +605,6 @@ export default function AdminPage() {
                   }
                   return null;
                 })()}
-              </div>
-            </div>
-
-            {/* Settings */}
-            <div className="card">
-              <h2 className="font-bold text-slate-700 mb-3">⚙️ 설정</h2>
-              <div className="flex items-center gap-4">
-                <label className="text-sm font-semibold text-slate-600 flex-shrink-0">도수치료실 침대 수</label>
-                <input
-                  id="max-beds-input"
-                  type="number"
-                  min={1} max={20}
-                  value={maxBeds}
-                  onChange={(e) => saveMaxBeds(parseInt(e.target.value) || 5)}
-                  className="input-field w-24 text-center text-lg font-bold"
-                />
-                <span className="text-slate-500 text-sm">개</span>
               </div>
             </div>
 

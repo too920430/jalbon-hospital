@@ -8,5 +8,3 @@ export const MOCK_THERAPISTS: Therapist[] = [
   { id: 'th-5', name: '강지나', color: '#EF4444', pin: 'wkfqhs0005', is_active: true, incentive: 10000 },
   { id: 'th-6', name: '박규빈', color: '#3B82F6', pin: 'wkfqhs0006', is_active: true, incentive: 10000 },
 ];
-
-export const MAX_BEDS = 5;

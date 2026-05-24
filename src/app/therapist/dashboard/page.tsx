@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
-import { getTherapistReservations, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds, deleteReservation } from '@/lib/api';
+import { getTherapistReservations, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, formatTherapistName, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
@@ -31,7 +31,7 @@ export default function TherapistDashboard() {
   const [editTime, setEditTime] = useState('');
   const [editDuration, setEditDuration] = useState<30 | 50>(50);
   const [editSlotAvailability, setEditSlotAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
-  const [editMaxBeds, setEditMaxBeds] = useState(5);
+
 
   // 스탯 카드 필터 상태
   const [showAll, setShowAll] = useState(false);
@@ -68,7 +68,7 @@ export default function TherapistDashboard() {
     setEditDate(res.date);
     setEditTime(res.start_time.slice(0, 5));
     setEditDuration(res.duration);
-    setEditMaxBeds(getMaxBeds());
+
     // 해당 날짜 슬롯 가용성 조회 (본인 예약만)
     if (therapist) {
       getSlotAvailability(res.date, therapist.id).then(setEditSlotAvailability);

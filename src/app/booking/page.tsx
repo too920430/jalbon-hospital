@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BookingFormData, Therapist } from '@/lib/types';
 import { getAvailableSlots, formatTime, formatDate, toDateStr, isOpenDay, formatTherapistName, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
-import { getTherapists, createReservation, getSlotAvailability, getMaxBeds, checkPatientPin } from '@/lib/api';
+import { getTherapists, createReservation, getSlotAvailability, checkPatientPin } from '@/lib/api';
 
 const STEPS = ['내 정보', '치료 시간', '치료사', '날짜', '시간', '확인'];
 
@@ -16,7 +16,7 @@ export default function BookingPage() {
   const [isTherapistDevice, setIsTherapistDevice] = useState(false);
   const [therapists, setTherapists] = useState<Therapist[]>([]);
   const [availability, setAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
-  const [maxBeds, setMaxBeds] = useState(5);
+
   const [form, setForm] = useState<BookingFormData>({
     patientName: '',
     patientPhone: '',
@@ -30,7 +30,6 @@ export default function BookingPage() {
 
   useEffect(() => {
     getTherapists().then(setTherapists);
-    setMaxBeds(getMaxBeds());
     if (localStorage.getItem('jalbon_is_therapist_device') === 'true') {
       setIsTherapistDevice(true);
     }

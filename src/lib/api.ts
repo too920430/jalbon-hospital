@@ -2,7 +2,7 @@
 
 import { Reservation, Therapist, BlockedSlot, AuditLog, ActionType } from './types';
 import { supabase, isSupabaseConfigured } from './supabase';
-import { MOCK_THERAPISTS, MAX_BEDS } from './mockData';
+import { MOCK_THERAPISTS } from './mockData';
 import { isSlotOverlapping } from './slots';
 
 // ─── 치료사 ─────────────────────────────────────────
@@ -389,10 +389,6 @@ function getLocalReservations(): Reservation[] {
   }
 }
 
-export function getMaxBeds(): number {
-  if (typeof window === 'undefined') return MAX_BEDS;
-  return parseInt(localStorage.getItem('jalbon_max_beds') || String(MAX_BEDS), 10);
-}
 
 // ─── 감사 로그 (Audit Logs) ───────────────────────────
 export async function insertAuditLog(
