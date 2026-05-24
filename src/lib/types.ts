@@ -38,7 +38,9 @@ export interface BookingFormData {
   therapistId: string | null; // null = 상관없음
   date: string | null;
   startTime: string | null;
-}export type ActionType = 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED' | 'TREATMENT_COMPLETED' | 'PAYMENT_COMPLETED';
+}
+
+export type ActionType = 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED' | 'TREATMENT_COMPLETED' | 'PAYMENT_COMPLETED' | 'RESERVATION_APPROVED';
 
 export interface AuditLog {
   id: string;

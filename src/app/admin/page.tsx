@@ -269,7 +269,7 @@ export default function AdminPage() {
   const monthlyReservations = reservations.filter(r => r.date.startsWith(selectedMonthStr));
 
   const monthlyTherapistStats = therapists.map((t) => {
-    const tRes = monthlyReservations.filter((r) => r.therapist_id === t.id && r.status === 'paid');
+    const tRes = monthlyReservations.filter((r) => r.therapist_id === t.id && r.status !== 'rejected');
     
     // Calculate new vs existing for this month
     let newCount = 0;
@@ -278,7 +278,7 @@ export default function AdminPage() {
     tRes.forEach(r => {
       const pastPaid = reservations.filter(
         past => past.patient_phone === r.patient_phone && 
-                past.status === 'paid' && 
+                past.status !== 'rejected' && 
                 (past.date + ' ' + past.start_time) < (r.date + ' ' + r.start_time)
       );
       if (pastPaid.length > 0) existCount++;
@@ -632,18 +632,18 @@ export default function AdminPage() {
             정산 관리
           </button>
           <button
+            onClick={() => setAdminTab('sms')}
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
+              ${adminTab === 'sms' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            알리고 알림내역
+          </button>
+          <button
             onClick={() => setAdminTab('logs')}
             className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
               ${adminTab === 'logs' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
           >
             전체 로그
-          </button>
-          <button
-            onClick={() => setAdminTab('sms')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'sms' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            알림 내역
           </button>
         </div>
 
@@ -863,15 +863,52 @@ export default function AdminPage() {
             ========================================================================= */}
         {adminTab === 'monthly' && (
           <div className="space-y-6 animate-fade-in-up">
-            <div className="card flex items-center justify-between px-6">
-              <button onClick={prevMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors text-xl">◀</button>
-              <h2 
-                className="font-extrabold text-2xl text-slate-700 cursor-pointer hover:text-sky-600 transition-colors"
-                onClick={() => setPickerType('monthly')}
-              >
-                {calYear}년 {calMonth + 1}월
-              </h2>
-              <button onClick={nextMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors text-xl">▶</button>
+            <div className="card flex items-center justify-between px-6 flex-wrap gap-4">
+              <div className="flex items-center gap-4">
+                <button onClick={prevMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors text-xl">◀</button>
+                <h2 
+                  className="font-extrabold text-2xl text-slate-700 cursor-pointer hover:text-sky-600 transition-colors"
+                  onClick={() => setPickerType('monthly')}
+                >
+                  {calYear}년 {calMonth + 1}월
+                </h2>
+                <button onClick={nextMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors text-xl">▶</button>
+              </div>
+              <button onClick={() => {
+                let dataToExport: any[] = [];
+                if (selectedTherapistId && selectedTherapistId !== 'unassigned') {
+                  const th = therapists.find(t => t.id === selectedTherapistId);
+                  const thRes = monthlyReservations.filter(r => r.therapist_id === selectedTherapistId && r.status !== 'rejected');
+                  dataToExport = thRes.sort((a,b) => (a.date+a.start_time).localeCompare(b.date+b.start_time)).map((r, i) => ({
+                    'No': i + 1,
+                    '치료사': th?.name || '',
+                    '환자명': r.patient_name,
+                    '전화번호': r.patient_phone,
+                    '날짜': r.date,
+                    '시간': r.start_time.slice(0,5),
+                    '상태': STATUS_MAP[r.status]?.label || r.status,
+                    '비고': r.note || ''
+                  }));
+                } else {
+                  const allRes = monthlyReservations.filter(r => r.status !== 'rejected');
+                  dataToExport = allRes.sort((a,b) => (a.date+a.start_time).localeCompare(b.date+b.start_time)).map((r, i) => {
+                    const th = therapists.find(t => t.id === r.therapist_id);
+                    return {
+                      'No': i + 1,
+                      '치료사': th?.name || '미정',
+                      '환자명': r.patient_name,
+                      '전화번호': r.patient_phone,
+                      '날짜': r.date,
+                      '시간': r.start_time.slice(0,5),
+                      '상태': STATUS_MAP[r.status]?.label || r.status,
+                      '비고': r.note || ''
+                    };
+                  });
+                }
+                downloadCSV(dataToExport, `월간치료사통계_${calYear}년${calMonth+1}월`);
+              }} className="bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 font-bold px-4 rounded-xl text-sm transition-colors h-[42px]">
+                📥 엑셀 다운로드
+              </button>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -943,7 +980,7 @@ export default function AdminPage() {
                   if (day === null) return <div key={`empty-${idx}`} className="h-20 rounded-xl bg-slate-50/50" />;
                   
                   const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                  let dayRes = monthlyReservations.filter(r => r.date === dateStr && r.status === 'paid');
+                  let dayRes = monthlyReservations.filter(r => r.date === dateStr && r.status !== 'rejected');
                   if (selectedTherapistId) {
                     if (selectedTherapistId === 'unassigned') {
                       dayRes = dayRes.filter(r => r.therapist_id === null);
@@ -1071,7 +1108,8 @@ export default function AdminPage() {
                     { id: 'THERAPIST_LOGIN', label: '치료사 로그인' },
                     { id: 'RESERVATION_CANCELED', label: '예약 취소' },
                     { id: 'TREATMENT_COMPLETED', label: '치료 완료' },
-                    { id: 'PAYMENT_COMPLETED', label: '수납 확정' }
+                    { id: 'PAYMENT_COMPLETED', label: '수납 확정' },
+                    { id: 'RESERVATION_APPROVED', label: '예약 승인' }
                   ].map(f => (
                     <button
                       key={f.id}
@@ -1135,6 +1173,11 @@ export default function AdminPage() {
                       bgColor = 'bg-indigo-50';
                       title = '수납 및 최종 완료';
                       desc = `${log.actor_name}님이 ${log.details?.patientName || ''} 환자의 예약(${log.details?.date || ''} ${log.details?.time?.slice(0,5) || ''})을 최종 수납 처리했습니다.`;
+                    } else if (log.action_type === 'RESERVATION_APPROVED') {
+                      icon = '👍';
+                      bgColor = 'bg-amber-50';
+                      title = '예약 승인 확정';
+                      desc = `${log.actor_name}님이 ${log.details?.patientName || ''} 환자의 예약(${log.details?.date || ''} ${log.details?.time?.slice(0,5) || ''})을 승인 확정 처리했습니다.`;
                     }
                     
                     return (
@@ -1173,18 +1216,6 @@ export default function AdminPage() {
                 <p className="text-sm text-slate-500">총 {patientsList.length}명의 환자가 방문했습니다.</p>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => {
-                  const data = patientsList.map(p => ({
-                    '환자명': p.name,
-                    '전화번호': p.phone,
-                    '방문횟수': p.totalCount,
-                    '최근방문일': p.latestDate,
-                    '상태': STATUS_MAP[p.latestStatus]?.label || '알수없음'
-                  }));
-                  downloadCSV(data, '환자목록');
-                }} className="bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 font-bold px-4 rounded-xl text-sm transition-colors">
-                  📥 엑셀 다운로드
-                </button>
                 <input
                   type="text"
                   placeholder="이름 또는 전화번호 검색"
@@ -1533,7 +1564,7 @@ export default function AdminPage() {
           <div className="space-y-6 animate-fade-in-up">
             <div className="flex justify-between items-end">
               <div>
-                <h2 className="text-xl font-bold text-slate-800">환자 알림 내역</h2>
+                <h2 className="text-xl font-bold text-slate-800">알리고 알림내역</h2>
                 <p className="text-sm text-slate-500">발송된 알림톡/문자 메시지 기록입니다.</p>
               </div>
             </div>

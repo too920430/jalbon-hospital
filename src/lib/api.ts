@@ -281,6 +281,7 @@ export async function updateReservationStatus(
       } else if (status === 'paid') {
         await insertAuditLog('PAYMENT_COMPLETED', '관리자', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
       } else if (status === 'approved') {
+        await insertAuditLog('RESERVATION_APPROVED', '치료사', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
         const msg = `[잘본병원] ${resToUpdate.patient_name}님의 예약(${resToUpdate.date} ${resToUpdate.start_time.slice(0,5)})이 확정되었습니다.`;
         await insertSmsLog(resToUpdate.patient_name, resToUpdate.patient_phone, msg, '치료사');
       }
@@ -309,6 +310,7 @@ export async function updateReservationStatus(
     } else if (status === 'done') {
       await insertAuditLog('TREATMENT_COMPLETED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
     } else if (status === 'approved') {
+      await insertAuditLog('RESERVATION_APPROVED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
       const msg = `[잘본병원] ${resToUpdate.patient_name}님의 예약(${resToUpdate.date} ${resToUpdate.start_time.slice(0,5)})이 ${thName}님께 확정되었습니다.`;
       await insertSmsLog(resToUpdate.patient_name, resToUpdate.patient_phone, msg, thName);
     }
