@@ -923,7 +923,7 @@ export default function AdminPage() {
                         );
                       })}
                       <td className="py-3 px-4 text-sky-600 font-extrabold text-xl">
-                        {yearlyReservations.length}
+                        {yearlyTherapistStats.reduce((sum, stat) => sum + stat.total, 0)}
                       </td>
                     </tr>
                   </tbody>
