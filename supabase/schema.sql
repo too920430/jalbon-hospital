@@ -76,4 +76,5 @@ create policy "reservations_insert" on reservations for insert with check (true)
 
 -- 누구나 업데이트 가능 (실제 운영 시 인증 추가 권장)
 create policy "reservations_update" on reservations for update using (true);
+create policy "reservations_delete" on reservations for delete using (true);
 create policy "blocked_slots_all" on blocked_slots for all using (true);
