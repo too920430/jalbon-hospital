@@ -78,3 +78,16 @@ create policy "reservations_insert" on reservations for insert with check (true)
 create policy "reservations_update" on reservations for update using (true);
 create policy "reservations_delete" on reservations for delete using (true);
 create policy "blocked_slots_all" on blocked_slots for all using (true);
+
+-- 감사 로그 테이블 (Audit Logs)
+create table if not exists audit_logs (
+  id           uuid primary key default gen_random_uuid(),
+  action_type  text not null check (action_type in ('PATIENT_BOOKING', 'THERAPIST_LOGIN', 'RESERVATION_CANCELED')),
+  actor_name   text not null,
+  details      jsonb,
+  created_at   timestamptz default now()
+);
+
+alter table audit_logs enable row level security;
+create policy "audit_logs_insert" on audit_logs for insert with check (true);
+create policy "audit_logs_read" on audit_logs for select using (true);

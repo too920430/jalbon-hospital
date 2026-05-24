@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getTherapists } from '@/lib/api';
+import { getTherapists, insertAuditLog } from '@/lib/api';
 import { Therapist } from '@/lib/types';
 import { formatTherapistName } from '@/lib/slots';
 
@@ -36,6 +36,7 @@ export default function TherapistLoginPage() {
       }
       sessionStorage.setItem('jalbon_role', 'admin');
       sessionStorage.setItem('jalbon_therapist', JSON.stringify({ id: 'admin', name: '관리자', color: '#64748b' }));
+      insertAuditLog('THERAPIST_LOGIN', '관리자', {});
       router.push('/admin');
       return;
     }
@@ -52,6 +53,7 @@ export default function TherapistLoginPage() {
 
     sessionStorage.setItem('jalbon_role', 'therapist');
     sessionStorage.setItem('jalbon_therapist', JSON.stringify(therapist));
+    insertAuditLog('THERAPIST_LOGIN', therapist.name, {});
     router.push('/therapist/dashboard');
   };
 

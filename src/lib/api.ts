@@ -1,6 +1,6 @@
 'use client';
 
-import { Reservation, Therapist, BlockedSlot } from './types';
+import { Reservation, Therapist, BlockedSlot, AuditLog, ActionType } from './types';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { MOCK_THERAPISTS, MAX_BEDS } from './mockData';
 
@@ -49,6 +49,7 @@ export async function createReservation(params: {
     };
     reservations.push(newRes);
     localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
+    insertAuditLog('PATIENT_BOOKING', params.patientName, { date: params.date, time: params.startTime });
     return { success: true };
   }
 
@@ -62,6 +63,9 @@ export async function createReservation(params: {
     duration: params.duration,
     status: 'pending',
   });
+  if (!error) {
+    insertAuditLog('PATIENT_BOOKING', params.patientName, { date: params.date, time: params.startTime });
+  }
   if (error) return { success: false, error: error.message };
   return { success: true };
 }
@@ -162,20 +166,33 @@ export async function updateReservationStatus(
   status: 'approved' | 'rejected' | 'done',
   note?: string
 ): Promise<boolean> {
+  let resToUpdate: any = null;
   if (!isSupabaseConfigured) {
     const reservations = getLocalReservations();
-    const idx = reservations.findIndex((r) => r.id === id);
-    if (idx !== -1) {
-      reservations[idx].status = status;
-      if (note) reservations[idx].note = note;
+    resToUpdate = reservations.find((r) => r.id === id);
+    if (resToUpdate) {
+      resToUpdate.status = status;
+      if (note) resToUpdate.note = note;
       localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
+      if (status === 'rejected') {
+        insertAuditLog('RESERVATION_CANCELED', '치료사', { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
+      }
     }
     return true;
   }
+
+  const { data } = await supabase.from('reservations').select('*, therapist:therapists(name)').eq('id', id).single();
+  resToUpdate = data;
+
   const { error } = await supabase
     .from('reservations')
     .update({ status, note })
     .eq('id', id);
+    
+  if (!error && status === 'rejected' && resToUpdate) {
+    const thName = resToUpdate.therapist?.name || '치료사';
+    insertAuditLog('RESERVATION_CANCELED', thName, { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
+  }
   return !error;
 }
 
@@ -208,15 +225,27 @@ export async function updateReservationDateTime(
 export async function deleteReservation(id: string): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) {
     let reservations = getLocalReservations();
-    reservations = reservations.filter((r) => r.id !== id);
-    localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
+    const resToDelete = reservations.find((r) => r.id === id);
+    if (resToDelete) {
+      reservations = reservations.filter((r) => r.id !== id);
+      localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
+      insertAuditLog('RESERVATION_CANCELED', '관리자/치료사', { patientName: resToDelete.patient_name, reason: '삭제됨', date: resToDelete.date, time: resToDelete.start_time });
+    }
     return { success: true };
   }
+
+  const { data: resToDelete } = await supabase.from('reservations').select('*, therapist:therapists(name)').eq('id', id).single();
+
   const { error } = await supabase
     .from('reservations')
     .delete()
     .eq('id', id);
   if (error) return { success: false, error: error.message };
+
+  if (resToDelete) {
+    const thName = resToDelete.therapist?.name || '관리자/치료사';
+    insertAuditLog('RESERVATION_CANCELED', thName, { patientName: resToDelete.patient_name, reason: '삭제됨', date: resToDelete.date, time: resToDelete.start_time });
+  }
   return { success: true };
 }
 
@@ -248,5 +277,50 @@ function getLocalReservations(): Reservation[] {
 
 export function getMaxBeds(): number {
   if (typeof window === 'undefined') return MAX_BEDS;
-  return parseInt(localStorage.getItem('jalbon_max_beds') || String(MAX_BEDS));
+  return parseInt(localStorage.getItem('jalbon_max_beds') || String(MAX_BEDS), 10);
+}
+
+// ─── 감사 로그 (Audit Logs) ───────────────────────────
+export async function insertAuditLog(
+  actionType: ActionType,
+  actorName: string,
+  details: any
+) {
+  if (!isSupabaseConfigured) {
+    const logs = getLocalAuditLogs();
+    logs.push({
+      id: `log-${Date.now()}`,
+      action_type: actionType,
+      actor_name: actorName,
+      details,
+      created_at: new Date().toISOString()
+    });
+    localStorage.setItem('jalbon_audit_logs', JSON.stringify(logs));
+    return;
+  }
+  await supabase.from('audit_logs').insert({
+    action_type: actionType,
+    actor_name: actorName,
+    details
+  });
+}
+
+export async function getAuditLogs(): Promise<AuditLog[]> {
+  if (!isSupabaseConfigured) {
+    return getLocalAuditLogs().reverse();
+  }
+  const { data } = await supabase
+    .from('audit_logs')
+    .select('*')
+    .order('created_at', { ascending: false });
+  return (data || []) as AuditLog[];
+}
+
+function getLocalAuditLogs(): AuditLog[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem('jalbon_audit_logs') || '[]');
+  } catch {
+    return [];
+  }
 }

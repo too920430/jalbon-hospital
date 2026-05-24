@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Reservation, Therapist } from '@/lib/types';
-import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds, deleteReservation } from '@/lib/api';
+import { Reservation, Therapist, AuditLog } from '@/lib/types';
+import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds, deleteReservation, getAuditLogs } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
@@ -39,10 +39,14 @@ export default function AdminPage() {
   const [editSlotAvailability, setEditSlotAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
 
   // Tabs & Dates
-  const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly' | 'logs'>('overview');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [selectedTherapistId, setSelectedTherapistId] = useState<string | null>(null);
+
+  // Logs
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [logFilter, setLogFilter] = useState<'all' | 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED'>('all');
 
   useEffect(() => {
     const role = sessionStorage.getItem('jalbon_role');
@@ -56,9 +60,10 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [res, ths] = await Promise.all([getAllReservations(), getTherapists()]);
+    const [res, ths, logs] = await Promise.all([getAllReservations(), getTherapists(), getAuditLogs()]);
     setReservations(res);
     setTherapists(ths);
+    setAuditLogs(logs);
     setLoading(false);
   };
 
@@ -377,6 +382,13 @@ export default function AdminPage() {
               ${adminTab === 'yearly' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
           >
             연간 치료사 통계
+          </button>
+          <button
+            onClick={() => setAdminTab('logs')}
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
+              ${adminTab === 'logs' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            전체 로그
           </button>
         </div>
 

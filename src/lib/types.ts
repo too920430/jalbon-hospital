@@ -39,6 +39,16 @@ export interface BookingFormData {
   startTime: string | null;
 }
 
+export type ActionType = 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED';
+
+export interface AuditLog {
+  id: string;
+  action_type: ActionType;
+  actor_name: string;
+  details: any;
+  created_at: string;
+}
+
 export interface SlotAvailability {
   time: string;
   isAvailable: boolean;
