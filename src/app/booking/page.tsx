@@ -532,18 +532,21 @@ export default function BookingPage() {
               <InfoRow icon="🕐" label="시간" value={form.startTime ? formatTime(form.startTime) : ''} />
             </div>
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-red-600 text-sm">
-                ⚠️ {error}
-              </div>
-            )}
-
             <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-amber-700 text-sm">
               💡 예약 신청 후 치료사 승인이 필요합니다
             </div>
           </div>
         )}
       </div>
+
+      {/* Global Error Message */}
+      {error && (
+        <div className="max-w-lg mx-auto px-4 pb-4 animate-fade-in-up">
+          <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-3 text-red-600 text-sm font-medium shadow-sm">
+            ⚠️ {error}
+          </div>
+        </div>
+      )}
 
       {/* Bottom Navigation */}
       <div className="sticky bottom-0 bg-white border-t border-slate-100 px-4 py-4 shadow-lg">
