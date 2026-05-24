@@ -68,15 +68,19 @@ export default function TherapistDashboard() {
     setEditTime(res.start_time.slice(0, 5));
     setEditDuration(res.duration);
     setEditMaxBeds(getMaxBeds());
-    // 해당 날짜 슬롯 가용성 조회
-    getSlotAvailability(res.date, null).then(setEditSlotAvailability);
+    // 해당 날짜 슬롯 가용성 조회 (본인 예약만)
+    if (therapist) {
+      getSlotAvailability(res.date, therapist.id).then(setEditSlotAvailability);
+    }
   };
 
   // 편집 날짜/치료시간 변경 시 슬롯 재조회
   const handleEditDateChange = (date: string) => {
     setEditDate(date);
     setEditTime(''); // 날짜 바뀌면 시간 초기화
-    if (date) getSlotAvailability(date, null).then(setEditSlotAvailability);
+    if (date && therapist) {
+      getSlotAvailability(date, therapist.id).then(setEditSlotAvailability);
+    }
   };
 
   const handleEditDurationChange = (dur: 30 | 50) => {
@@ -399,7 +403,7 @@ export default function TherapistDashboard() {
                                     <div className="grid grid-cols-3 gap-1.5">
                                       {amSlots.map(time => {
                                         const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, res.id);
-                                        const isFull = count >= editMaxBeds;
+                                        const isFull = count >= 1;
                                         const isSelected = editTime === time;
                                         return (
                                           <button
@@ -428,7 +432,7 @@ export default function TherapistDashboard() {
                                     <div className="grid grid-cols-3 gap-1.5">
                                       {pmSlots.map(time => {
                                         const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, res.id);
-                                        const isFull = count >= editMaxBeds;
+                                        const isFull = count >= 1;
                                         const isSelected = editTime === time;
                                         return (
                                           <button

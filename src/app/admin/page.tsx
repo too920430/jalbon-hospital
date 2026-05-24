@@ -72,13 +72,13 @@ export default function AdminPage() {
     setEditDate(res.date);
     setEditTime(res.start_time.slice(0, 5));
     setEditDuration(res.duration);
-    getSlotAvailability(res.date, null).then(setEditSlotAvailability);
+    getSlotAvailability(res.date, res.therapist_id || null).then(setEditSlotAvailability);
   };
 
   const handleAdminEditDateChange = (date: string) => {
     setEditDate(date);
     setEditTime('');
-    if (date) getSlotAvailability(date, null).then(setEditSlotAvailability);
+    if (date && editingRes) getSlotAvailability(date, editingRes.therapist_id || null).then(setEditSlotAvailability);
   };
 
   const handleAdminEditDurationChange = (dur: 30 | 50) => {
@@ -211,7 +211,8 @@ export default function AdminPage() {
                         <div className="grid grid-cols-3 gap-1.5">
                           {amSlots.map(time => {
                             const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, editingRes.id);
-                            const isFull = count >= adminMaxBeds;
+                            const limit = editingRes.therapist_id ? 1 : adminMaxBeds;
+                            const isFull = count >= limit;
                             const isSelected = editTime === time;
                             return (
                               <button key={time} disabled={isFull}
@@ -235,7 +236,8 @@ export default function AdminPage() {
                         <div className="grid grid-cols-3 gap-1.5">
                           {pmSlots.map(time => {
                             const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, editingRes.id);
-                            const isFull = count >= adminMaxBeds;
+                            const limit = editingRes.therapist_id ? 1 : adminMaxBeds;
+                            const isFull = count >= limit;
                             const isSelected = editTime === time;
                             return (
                               <button key={time} disabled={isFull}
