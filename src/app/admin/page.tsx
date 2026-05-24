@@ -978,6 +978,7 @@ export default function AdminPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-slate-400 text-xs border-b border-slate-100">
+                      <th className="pb-2 text-center w-12">No.</th>
                       <th className="pb-2 pl-2">날짜/시간</th>
                       <th className="pb-2">환자명</th>
                       <th className="pb-2">연락처</th>
@@ -989,8 +990,9 @@ export default function AdminPage() {
                     {monthlyReservations
                       .filter(r => (!selectedTherapistId || r.therapist_id === selectedTherapistId) && r.status === 'paid')
                       .sort((a, b) => (a.date + a.start_time).localeCompare(b.date + b.start_time))
-                      .map(r => (
+                      .map((r, idx) => (
                         <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="py-2 text-center font-bold text-slate-400">{idx + 1}</td>
                           <td className="py-2 pl-2 text-slate-600">{formatDate(r.date)} {formatTime(r.start_time)}</td>
                           <td className="py-2 font-medium text-slate-700">{r.patient_name}</td>
                           <td className="py-2 text-slate-500">{r.patient_phone}</td>
@@ -1006,7 +1008,7 @@ export default function AdminPage() {
                       ))}
                     {monthlyReservations.filter(r => (!selectedTherapistId || r.therapist_id === selectedTherapistId) && r.status === 'paid').length === 0 && (
                       <tr>
-                        <td colSpan={5} className="py-6 text-center text-slate-400 text-sm">
+                        <td colSpan={6} className="py-6 text-center text-slate-400 text-sm">
                           이번 달 완료된 예약이 없습니다.
                         </td>
                       </tr>
@@ -1027,8 +1029,9 @@ export default function AdminPage() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-4">
                   <h2 className="font-bold text-slate-700 text-lg">전체 로그 기록</h2>
-                  <button onClick={handleDeleteLogsClick} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-3 py-1.5 rounded-lg transition-colors border border-red-200">
-                    🗑 현재 내역 삭제
+                  <button onClick={handleDeleteLogsClick} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-3 py-1.5 rounded-lg transition-colors border border-red-200 flex flex-col items-center leading-tight">
+                    <span>🗑 현재</span>
+                    <span>내역 삭제</span>
                   </button>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 bg-slate-50 p-1 rounded-xl gap-1 w-full">
