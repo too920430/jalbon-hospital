@@ -1035,17 +1035,12 @@ export default function AdminPage() {
         {adminTab === 'logs' && (
           <div className="space-y-6 animate-fade-in-up">
             <div className="card space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
-                <div className="flex items-center gap-4">
+              <div className="flex flex-col gap-4 border-b border-slate-100 pb-4">
+                <div className="flex items-center justify-between">
                   <h2 className="font-bold text-slate-700 text-lg">전체 로그 기록</h2>
-                  <button onClick={handleDeleteLogsClick} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-3 py-1.5 rounded-lg transition-colors border border-red-200 flex flex-col items-center leading-tight gap-0.5">
-                    <span className="text-sm">🗑</span>
-                    <span>현재</span>
-                    <span>내역</span>
-                    <span>삭제</span>
-                  </button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 bg-slate-50 p-1 rounded-xl gap-1 w-full">
+                <div className="flex flex-col gap-2 w-full">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 bg-slate-50 p-1 rounded-xl gap-1 w-full">
                   {[
                     { id: 'all', label: '전체보기' },
                     { id: 'THERAPIST_LOGIN', label: '로그인 내역' },
@@ -1070,8 +1065,14 @@ export default function AdminPage() {
                     );
                   })}
                 </div>
+                <div className="flex justify-end mt-1">
+                  <button onClick={handleDeleteLogsClick} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-4 py-2 rounded-lg transition-colors border border-red-200 flex items-center gap-1.5 whitespace-nowrap">
+                    <span className="text-sm">🗑</span>
+                    <span>현재 내역 삭제</span>
+                  </button>
+                </div>
               </div>
-              
+              </div>
               <div className="space-y-3 max-h-[600px] overflow-y-auto pr-2">
                 {auditLogs.filter(log => logFilter === 'all' || log.action_type === logFilter).length === 0 ? (
                   <p className="text-center text-slate-400 py-8 text-sm">해당하는 로그 기록이 없습니다.</p>
