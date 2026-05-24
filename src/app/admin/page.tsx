@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
 import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds } from '@/lib/api';
-import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay } from '@/lib/slots';
+import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot } from '@/lib/slots';
 
 const STATUS_MAP = {
   pending:  { label: '승인 대기', color: 'bg-amber-100 text-amber-700' },
@@ -31,7 +31,7 @@ export default function AdminPage() {
   const [editTime, setEditTime] = useState('');
   const [editDuration, setEditDuration] = useState<30 | 50>(50);
   const [editSaving, setEditSaving] = useState(false);
-  const [editSlotAvailability, setEditSlotAvailability] = useState<{ [time: string]: number }>({});
+  const [editSlotAvailability, setEditSlotAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
 
   // Tabs & Dates
   const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly'>('overview');
@@ -210,10 +210,8 @@ export default function AdminPage() {
                         <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">오전</p>
                         <div className="grid grid-cols-3 gap-1.5">
                           {amSlots.map(time => {
-                            const count = editSlotAvailability[time] || 0;
-                            const occupied = (editingRes.date === editDate && editingRes.start_time.slice(0,5) === time)
-                              ? Math.max(0, count - 1) : count;
-                            const isFull = occupied >= adminMaxBeds;
+                            const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, editingRes.id);
+                            const isFull = count >= adminMaxBeds;
                             const isSelected = editTime === time;
                             return (
                               <button key={time} disabled={isFull}
@@ -236,10 +234,8 @@ export default function AdminPage() {
                         <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">오후</p>
                         <div className="grid grid-cols-3 gap-1.5">
                           {pmSlots.map(time => {
-                            const count = editSlotAvailability[time] || 0;
-                            const occupied = (editingRes.date === editDate && editingRes.start_time.slice(0,5) === time)
-                              ? Math.max(0, count - 1) : count;
-                            const isFull = occupied >= adminMaxBeds;
+                            const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, editingRes.id);
+                            const isFull = count >= adminMaxBeds;
                             const isSelected = editTime === time;
                             return (
                               <button key={time} disabled={isFull}

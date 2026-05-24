@@ -100,40 +100,36 @@ export async function getPatientReservations(
   return { data: matchingPin as Reservation[] };
 }
 
-// ─── 슬롯 예약 현황 조회 ─────────────────────────────
+// ─── 슬롯 가용성 조회 (해당 날짜/치료사의 예약 목록 반환) ───
 export async function getSlotAvailability(
   date: string,
   therapistId: string | null
-): Promise<{ [time: string]: number }> {
+): Promise<{ id: string; start_time: string; duration: number }[]> {
   if (!isSupabaseConfigured) {
-    const res = getLocalReservations().filter(
-      (r) =>
-        r.date === date &&
-        r.status !== 'rejected' &&
-        (therapistId ? r.therapist_id === therapistId : true)
-    );
-    const counts: { [time: string]: number } = {};
-    res.forEach((r) => {
-      counts[r.start_time] = (counts[r.start_time] || 0) + 1;
-    });
-    return counts;
+    return getLocalReservations()
+      .filter(
+        (r) =>
+          r.date === date &&
+          r.status !== 'rejected' &&
+          (therapistId ? r.therapist_id === therapistId : true)
+      )
+      .map(r => ({ id: r.id, start_time: r.start_time, duration: r.duration }));
   }
 
   let query = supabase
     .from('reservations')
-    .select('start_time, therapist_id')
+    .select('id, start_time, duration')
     .eq('date', date)
     .neq('status', 'rejected');
   if (therapistId) query = query.eq('therapist_id', therapistId);
 
   const { data, error } = await query;
-  if (error) return {};
-  const counts: { [time: string]: number } = {};
-  (data || []).forEach((r: { start_time: string }) => {
-    const t = r.start_time.slice(0, 5);
-    counts[t] = (counts[t] || 0) + 1;
-  });
-  return counts;
+  if (error) return [];
+  return (data || []).map((r: any) => ({
+    id: r.id,
+    start_time: r.start_time.slice(0, 5),
+    duration: r.duration
+  }));
 }
 
 // ─── 치료사 예약 목록 ─────────────────────────────────

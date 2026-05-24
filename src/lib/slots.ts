@@ -77,7 +77,42 @@ export function toDateStr(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-/** 영업일 여부 */
+// 영업일 여부
 export function isOpenDay(date: Date): boolean {
   return date.getDay() !== 0; // 일요일만 휴무
+}
+
+// ─── 슬롯 겹침 체크 로직 ──────────────────────────────────────
+export function isSlotOverlapping(
+  slotTime: string,
+  slotDuration: number,
+  reservationStartTime: string,
+  reservationDuration: number
+): boolean {
+  const [h1, m1] = slotTime.split(':').map(Number);
+  const start1 = h1 * 60 + m1;
+  const end1 = start1 + slotDuration;
+
+  const [h2, m2] = reservationStartTime.split(':').map(Number);
+  const start2 = h2 * 60 + m2;
+  const end2 = start2 + reservationDuration;
+
+  // 겹치는지 확인 (시작이나 끝이 맞물리는 건 안 겹친다고 봄)
+  return Math.max(start1, start2) < Math.min(end1, end2);
+}
+
+export function getOccupiedCountForSlot(
+  slotTime: string,
+  slotDuration: number,
+  reservations: { id: string; start_time: string; duration: number }[],
+  ignoreId?: string // 수정 시 자기 자신의 예약은 무시
+): number {
+  let count = 0;
+  for (const res of reservations) {
+    if (ignoreId && res.id === ignoreId) continue;
+    if (isSlotOverlapping(slotTime, slotDuration, res.start_time, res.duration)) {
+      count++;
+    }
+  }
+  return count;
 }

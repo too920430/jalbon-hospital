@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BookingFormData, Therapist } from '@/lib/types';
-import { getAvailableSlots, formatTime, formatDate, toDateStr, isOpenDay, formatTherapistName } from '@/lib/slots';
+import { getAvailableSlots, formatTime, formatDate, toDateStr, isOpenDay, formatTherapistName, getOccupiedCountForSlot } from '@/lib/slots';
 import { getTherapists, createReservation, getSlotAvailability, getMaxBeds } from '@/lib/api';
 
 const STEPS = ['내 정보', '치료 시간', '치료사', '날짜', '시간', '확인'];
@@ -14,7 +14,7 @@ export default function BookingPage() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [therapists, setTherapists] = useState<Therapist[]>([]);
-  const [availability, setAvailability] = useState<{ [time: string]: number }>({});
+  const [availability, setAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
   const [maxBeds, setMaxBeds] = useState(5);
   const [form, setForm] = useState<BookingFormData>({
     patientName: '',
@@ -66,7 +66,7 @@ export default function BookingPage() {
 
   const getSlotStatus = (time: string): 'available' | 'selected' | 'full' => {
     if (form.startTime === time) return 'selected';
-    const count = availability[time] || 0;
+    const count = getOccupiedCountForSlot(time, form.duration || 50, availability);
     if (form.therapistId) {
       return count >= 1 ? 'full' : 'available';
     }

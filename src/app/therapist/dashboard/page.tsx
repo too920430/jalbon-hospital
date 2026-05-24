@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
 import { getTherapistReservations, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds } from '@/lib/api';
-import { formatDate, formatTime, toDateStr, formatTherapistName, getAvailableSlots, isOpenDay } from '@/lib/slots';
+import { formatDate, formatTime, toDateStr, formatTherapistName, getAvailableSlots, isOpenDay, getOccupiedCountForSlot } from '@/lib/slots';
 
 const STATUS_MAP = {
   pending:  { label: '승인 대기', color: 'bg-amber-100 text-amber-700' },
@@ -29,7 +29,7 @@ export default function TherapistDashboard() {
   const [editDate, setEditDate] = useState('');
   const [editTime, setEditTime] = useState('');
   const [editDuration, setEditDuration] = useState<30 | 50>(50);
-  const [editSlotAvailability, setEditSlotAvailability] = useState<{ [time: string]: number }>({});
+  const [editSlotAvailability, setEditSlotAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
   const [editMaxBeds, setEditMaxBeds] = useState(5);
 
   // 스탯 카드 필터 상태
@@ -398,11 +398,8 @@ export default function TherapistDashboard() {
                                     <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">오전</p>
                                     <div className="grid grid-cols-3 gap-1.5">
                                       {amSlots.map(time => {
-                                        const count = editSlotAvailability[time] || 0;
-                                        // 현재 수정 중인 예약의 원래 슬롯은 1개 빼서 계산 (본인 자리 제외)
-                                        const occupied = (res.date === editDate && res.start_time.slice(0,5) === time)
-                                          ? Math.max(0, count - 1) : count;
-                                        const isFull = occupied >= editMaxBeds;
+                                        const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, res.id);
+                                        const isFull = count >= editMaxBeds;
                                         const isSelected = editTime === time;
                                         return (
                                           <button
@@ -430,10 +427,8 @@ export default function TherapistDashboard() {
                                     <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">오후</p>
                                     <div className="grid grid-cols-3 gap-1.5">
                                       {pmSlots.map(time => {
-                                        const count = editSlotAvailability[time] || 0;
-                                        const occupied = (res.date === editDate && res.start_time.slice(0,5) === time)
-                                          ? Math.max(0, count - 1) : count;
-                                        const isFull = occupied >= editMaxBeds;
+                                        const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, res.id);
+                                        const isFull = count >= editMaxBeds;
                                         const isSelected = editTime === time;
                                         return (
                                           <button
