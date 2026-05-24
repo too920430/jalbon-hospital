@@ -221,6 +221,30 @@ export default function AdminPage() {
   const prevMonth = () => setCurrentMonth(new Date(calYear, calMonth - 1, 1));
   const nextMonth = () => setCurrentMonth(new Date(calYear, calMonth + 1, 1));
 
+  const handleListMonthPrev = () => {
+    const [y, m] = listMonth.split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    setListMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    setFilterDateMode('month');
+  };
+  const handleListMonthNext = () => {
+    const [y, m] = listMonth.split('-').map(Number);
+    const d = new Date(y, m, 1);
+    setListMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    setFilterDateMode('month');
+  };
+
+  const handleSettlementMonthPrev = () => {
+    const [y, m] = settlementMonth.split('-').map(Number);
+    const d = new Date(y, m - 2, 1);
+    setSettlementMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  };
+  const handleSettlementMonthNext = () => {
+    const [y, m] = settlementMonth.split('-').map(Number);
+    const d = new Date(y, m, 1);
+    setSettlementMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  };
+
   const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
   const firstDay = new Date(calYear, calMonth, 1).getDay();
   const days = [];
@@ -606,30 +630,31 @@ export default function AdminPage() {
 
             {/* Reservation List */}
             <div className="card">
-              <div className="flex flex-wrap items-center gap-3 mb-4">
-                <h2 className="font-bold text-slate-700 flex-1 flex items-center gap-2">
-                  <span>예약 목록</span>
-                  <input type="month" className="input-field w-auto text-sm py-1 px-2 cursor-pointer hover:bg-slate-50 transition-colors"
-                         value={listMonth} onChange={(e) => {
-                           setListMonth(e.target.value);
-                           setFilterDateMode('month');
-                         }} />
-                </h2>
-                <select id="filter-therapist" className="input-field w-auto text-sm py-2"
-                        value={filterTherapist} onChange={(e) => setFilterTherapist(e.target.value)}>
-                  <option value="">전체 치료사</option>
-                  {therapists.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-                <select id="filter-status" className="input-field w-auto text-sm py-2"
-                        value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                  <option value="">전체 상태</option>
-                  <option value="pending">승인 대기</option>
-                  <option value="approved">확정</option>
-                  <option value="rejected">거절</option>
-                  <option value="done">완료</option>
-                </select>
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3 bg-slate-50 px-4 py-1.5 rounded-2xl border border-slate-100">
+                  <button onClick={handleListMonthPrev} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">◀</button>
+                  <h2 className="font-extrabold text-slate-700 min-w-[90px] text-center text-sm">
+                    {listMonth.split('-')[0]}년 {listMonth.split('-')[1]}월
+                  </h2>
+                  <button onClick={handleListMonthNext} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">▶</button>
+                </div>
+                <div className="flex gap-2">
+                  <select id="filter-therapist" className="input-field w-auto text-sm py-2"
+                          value={filterTherapist} onChange={(e) => setFilterTherapist(e.target.value)}>
+                    <option value="">전체 치료사</option>
+                    {therapists.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  <select id="filter-status" className="input-field w-auto text-sm py-2"
+                          value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                    <option value="">전체 상태</option>
+                    <option value="pending">승인 대기</option>
+                    <option value="approved">확정</option>
+                    <option value="rejected">거절</option>
+                    <option value="done">완료</option>
+                  </select>
+                </div>
               </div>
 
               {loading ? (
@@ -1123,17 +1148,18 @@ export default function AdminPage() {
         ========================================================================= */}
         {adminTab === 'settlement' && (
           <div className="space-y-6 animate-fade-in-up">
-            <div className="flex justify-between items-end">
+            <div className="flex justify-between items-end flex-wrap gap-4">
               <div>
                 <h2 className="text-xl font-bold text-slate-800">인센티브 정산 관리</h2>
                 <p className="text-sm text-slate-500">수납 완료된 건을 기준으로 단가와 3.3% 세금을 자동 계산합니다.</p>
               </div>
-              <input
-                type="month"
-                className="input-field max-w-[150px]"
-                value={settlementMonth}
-                onChange={(e) => setSettlementMonth(e.target.value)}
-              />
+              <div className="flex items-center gap-4 bg-white shadow-sm px-5 py-2 rounded-2xl border border-slate-100">
+                <button onClick={handleSettlementMonthPrev} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">◀</button>
+                <h2 className="font-extrabold text-xl text-slate-700 min-w-[110px] text-center">
+                  {settlementMonth.split('-')[0]}년 {settlementMonth.split('-')[1]}월
+                </h2>
+                <button onClick={handleSettlementMonthNext} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">▶</button>
+              </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
