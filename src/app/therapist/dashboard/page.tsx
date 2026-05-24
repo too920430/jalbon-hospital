@@ -58,7 +58,7 @@ export default function TherapistDashboard() {
 
   const handleAction = async (id: string, status: 'approved' | 'rejected' | 'done') => {
     setActionLoading(id);
-    await updateReservationStatus(id, status);
+    await updateReservationStatus(id, status, undefined, status === 'approved' ? therapist?.id : undefined);
     if (therapist) await loadReservations(therapist.id);
     setActionLoading(null);
   };
@@ -354,9 +354,16 @@ export default function TherapistDashboard() {
                           </p>
                           <p className="text-slate-500 text-sm">{formatDate(res.date)}</p>
                         </div>
-                        <span className={`status-badge ${statusInfo.color}`}>
-                          {statusInfo.label}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`status-badge ${statusInfo.color}`}>
+                            {statusInfo.label}
+                          </span>
+                          {!res.therapist_id && (
+                            <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-bold">
+                              상관없음 (선착순)
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       <div className="space-y-1 text-sm text-slate-600 mb-3">

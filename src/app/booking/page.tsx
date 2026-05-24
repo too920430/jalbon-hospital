@@ -78,7 +78,11 @@ export default function BookingPage() {
     if (form.therapistId) {
       return count >= 1 ? 'full' : 'available';
     }
-    return count >= maxBeds ? 'full' : 'available';
+    
+    // 상관없음(null)인 경우: 예약 가능한 최대 인원은 활성 치료사 수와 침대 수 중 작은 값
+    const activeTherapistsCount = therapists.length || 1; // 방어 코드
+    const capacity = Math.min(activeTherapistsCount, maxBeds);
+    return count >= capacity ? 'full' : 'available';
   };
 
   const canNext = (): boolean => {

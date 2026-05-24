@@ -3,6 +3,7 @@
 import { Reservation, Therapist, BlockedSlot, AuditLog, ActionType } from './types';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { MOCK_THERAPISTS, MAX_BEDS } from './mockData';
+import { isSlotOverlapping } from './slots';
 
 // ─── 치료사 ─────────────────────────────────────────
 export async function getTherapists(): Promise<Therapist[]> {
@@ -220,30 +221,46 @@ export async function getTherapistReservations(
   therapistId: string,
   date?: string
 ): Promise<Reservation[]> {
+  let reservations: Reservation[] = [];
   if (!isSupabaseConfigured) {
-    return getLocalReservations().filter(
+    reservations = getLocalReservations().filter(
       (r) =>
-        r.therapist_id === therapistId &&
+        (r.therapist_id === therapistId || r.therapist_id === null) &&
         (date ? r.date === date : true)
     );
+  } else {
+    let query = supabase
+      .from('reservations')
+      .select('*')
+      .or(`therapist_id.eq.${therapistId},therapist_id.is.null`)
+      .order('date')
+      .order('start_time');
+    if (date) query = query.eq('date', date);
+    const { data, error } = await query;
+    if (!error && data) {
+      reservations = data as Reservation[];
+    }
   }
-  let query = supabase
-    .from('reservations')
-    .select('*')
-    .eq('therapist_id', therapistId)
-    .order('date')
-    .order('start_time');
-  if (date) query = query.eq('date', date);
-  const { data, error } = await query;
-  if (error) return [];
-  return data as Reservation[];
+
+  // 필터링: therapist_id가 null(상관없음)인 예약 중, 
+  // 치료사 본인의 예약과 시간이 겹치는 것은 보이지 않게 함
+  const myRes = reservations.filter(r => r.therapist_id === therapistId && r.status !== 'rejected');
+  const validReservations = reservations.filter(r => {
+    if (r.therapist_id === therapistId) return true; // 본인 예약은 항상 보임
+    // 상관없음(null) 예약인 경우 겹치는지 확인
+    const overlaps = myRes.some(mr => mr.date === r.date && isSlotOverlapping(r.start_time, r.duration, mr.start_time, mr.duration));
+    return !overlaps; // 겹치지 않으면 보임
+  });
+
+  return validReservations;
 }
 
 // ─── 예약 상태 업데이트 ───────────────────────────────
 export async function updateReservationStatus(
   id: string,
   status: 'approved' | 'rejected' | 'done' | 'paid',
-  note?: string
+  note?: string,
+  assignTherapistId?: string
 ): Promise<boolean> {
   let resToUpdate: any = null;
   if (!isSupabaseConfigured) {
@@ -252,6 +269,9 @@ export async function updateReservationStatus(
     if (resToUpdate) {
       resToUpdate.status = status;
       if (note) resToUpdate.note = note;
+      if (assignTherapistId && !resToUpdate.therapist_id) {
+        resToUpdate.therapist_id = assignTherapistId;
+      }
       localStorage.setItem('jalbon_reservations', JSON.stringify(reservations));
       if (status === 'rejected') {
         insertAuditLog('RESERVATION_CANCELED', '치료사', { patientName: resToUpdate.patient_name, reason: '거절됨', date: resToUpdate.date, time: resToUpdate.start_time });
@@ -267,9 +287,15 @@ export async function updateReservationStatus(
   const { data } = await supabase.from('reservations').select('*, therapist:therapists(name)').eq('id', id).single();
   resToUpdate = data;
 
+  const updateData: any = { status };
+  if (note !== undefined) updateData.note = note;
+  if (assignTherapistId && !resToUpdate.therapist_id) {
+    updateData.therapist_id = assignTherapistId;
+  }
+
   const { error } = await supabase
     .from('reservations')
-    .update({ status, note })
+    .update(updateData)
     .eq('id', id);
     
   if (!error && resToUpdate) {
