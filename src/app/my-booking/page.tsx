@@ -168,8 +168,11 @@ export default function MyBookingPage() {
           </div>
         )}
 
-        <div className="text-center pt-2 animate-fade-in-up">
-          <Link href="/booking" id="new-booking-link" className="text-sky-500 text-sm font-semibold hover:underline">
+        <div className="text-center pt-2 animate-fade-in-up space-y-4">
+          <p className="text-xs text-slate-500">
+            예약변경 문의 전화: <span className="font-semibold text-slate-700">0507-1380-3834</span>
+          </p>
+          <Link href="/booking" id="new-booking-link" className="text-sky-500 text-sm font-semibold hover:underline block">
             + 새 예약하기
           </Link>
         </div>

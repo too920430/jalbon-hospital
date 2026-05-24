@@ -29,6 +29,10 @@ export default function HomePage() {
              style={{ animationDelay: '0.1s' }}>
             창원 중동중앙로 47 어반브릭스 오피스타워 18층 1806호
           </p>
+          <p className="text-sky-200 text-sm mb-4 animate-fade-in-up"
+             style={{ animationDelay: '0.12s' }}>
+            📞 0507-1380-3834
+          </p>
           <p className="text-sky-200 text-sm animate-fade-in-up"
              style={{ animationDelay: '0.15s' }}>
             도수치료실 온라인 예약 시스템

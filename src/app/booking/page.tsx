@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BookingFormData, Therapist } from '@/lib/types';
@@ -131,6 +131,7 @@ export default function BookingPage() {
           <div>
             <h1 className="font-bold text-slate-800 text-base">도수치료 예약</h1>
             <p className="text-xs text-slate-400">창원 본앤밸런스</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">📞 0507-1380-3834</p>
           </div>
         </div>
         {/* Step indicator */}
@@ -422,23 +423,30 @@ export default function BookingPage() {
                     <div className="grid grid-cols-3 gap-2">
                       {timeSlots.filter(t => parseInt(t.split(':')[0]) >= 12).map(time => {
                         const status = getSlotStatus(time);
+                        const isSaturday = form.date ? new Date(form.date + 'T00:00:00').getDay() === 6 : false;
                         return (
-                          <button
-                            key={time}
-                            id={`slot-${time}`}
-                            onClick={() => (status === 'available') && setForm(f => ({ ...f, startTime: time }))}
-                            className={`slot-btn ${
-                              status === 'selected' ? 'slot-selected' :
-                              status === 'available' ? 'slot-available' : 'slot-full'
-                            }`}
-                          >
-                            {formatTime(time)}
-                            {status !== 'available' && status !== 'selected' && (
-                              <div className="text-[10px] leading-tight mt-0.5 break-keep">
-                                {status === 'full' ? '마감' : status}
+                          <React.Fragment key={time}>
+                            <button
+                              id={`slot-${time}`}
+                              onClick={() => (status === 'available') && setForm(f => ({ ...f, startTime: time }))}
+                              className={`slot-btn ${
+                                status === 'selected' ? 'slot-selected' :
+                                status === 'available' ? 'slot-available' : 'slot-full'
+                              }`}
+                            >
+                              {formatTime(time)}
+                              {status !== 'available' && status !== 'selected' && (
+                                <div className="text-[10px] leading-tight mt-0.5 break-keep">
+                                  {status === 'full' ? '마감' : status}
+                                </div>
+                              )}
+                            </button>
+                            {time === '12:00' && !isSaturday && (
+                              <div className="col-span-2 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-xl text-slate-400 text-xs font-medium">
+                                점심시간 12:30 ~ 1:30
                               </div>
                             )}
-                          </button>
+                          </React.Fragment>
                         );
                       })}
                     </div>
