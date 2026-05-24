@@ -55,9 +55,14 @@ export default function AdminPage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [pinChangePhone, setPinChangePhone] = useState<string | null>(null);
+  const [pinChangePatient, setPinChangePatient] = useState<{name: string, phone: string} | null>(null);
   const [newPin, setNewPin] = useState('');
   const [pinSaving, setPinSaving] = useState(false);
+  
+  // Log Delete Modal State
+  const [logDeleteTarget, setLogDeleteTarget] = useState<{actionType?: string, label: string} | null>(null);
+  const [logDeletePassword, setLogDeletePassword] = useState('');
+  const [showLogDeletePassword, setShowLogDeletePassword] = useState(false);
   const [settlementMonth, setSettlementMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -90,7 +95,7 @@ export default function AdminPage() {
     setLoading(false);
   };
 
-  const handleDeleteLogs = async () => {
+  const handleDeleteLogsClick = () => {
     const actionType = logFilter === 'all' ? undefined : logFilter;
     const label = logFilter === 'all' ? '전체 로그' : {
       'PATIENT_BOOKING': '환자 예약',
@@ -98,19 +103,24 @@ export default function AdminPage() {
       'RESERVATION_CANCELED': '예약 취소',
       'TREATMENT_COMPLETED': '치료 완료',
       'PAYMENT_COMPLETED': '수납 확정'
-    }[logFilter];
+    }[logFilter] as string;
     
-    if (!confirm(`정말로 [${label}] 기록을 모두 삭제하시겠습니까?\n(실제 데이터베이스에서 영구 삭제되며 복구할 수 없습니다)`)) return;
+    setLogDeleteTarget({ actionType, label });
+    setLogDeletePassword('');
+    setShowLogDeletePassword(false);
+  };
 
-    const pw = prompt('관리자 비밀번호를 입력해주세요.');
-    if (pw !== 'wkfqhs2022!') {
+  const confirmLogDelete = async () => {
+    if (!logDeleteTarget) return;
+    if (logDeletePassword !== 'wkfqhs2022!') {
       alert('비밀번호가 일치하지 않습니다.');
       return;
     }
     
-    const success = await deleteAuditLogs(actionType);
+    const success = await deleteAuditLogs(logDeleteTarget.actionType);
     if (success) {
       alert('삭제되었습니다.');
+      setLogDeleteTarget(null);
       await loadData();
     } else {
       alert('로그 삭제 중 오류가 발생했습니다. 권한을 확인해주세요.');
@@ -167,16 +177,16 @@ export default function AdminPage() {
   };
 
   const handlePinReset = async () => {
-    if (!pinChangePhone || !newPin || newPin.length !== 4) {
+    if (!pinChangePatient || !newPin || newPin.length !== 4) {
       alert('새로운 4자리 PIN을 입력해주세요.');
       return;
     }
     setPinSaving(true);
-    const res = await updatePatientPin(pinChangePhone, newPin);
+    const res = await updatePatientPin(pinChangePatient.phone, newPin);
     setPinSaving(false);
     if (res.success) {
       alert('비밀번호가 성공적으로 변경되었습니다.');
-      setPinChangePhone(null);
+      setPinChangePatient(null);
       setNewPin('');
       loadData();
     } else {
@@ -200,7 +210,7 @@ export default function AdminPage() {
   // --- Overview Data ---
   const today = toDateStr(new Date());
   const todayAll = reservations.filter((r) => r.date === today);
-  const todayPending = todayAll.filter((r) => r.status === 'pending').length;
+  const todayDone = todayAll.filter((r) => r.status === 'done').length;
 
   const currentMonthString = today.slice(0, 7);
   const thisMonthReservations = reservations.filter((r) => r.date.startsWith(currentMonthString));
@@ -607,9 +617,9 @@ export default function AdminPage() {
               <StatCard label="오늘 전체" value={todayAll.length} color="text-sky-600" 
                 isActive={filterDateMode === 'today' && filterStatus === ''}
                 onClick={() => { setFilterDateMode('today'); setFilterStatus(''); setFilterTherapist(''); }} />
-              <StatCard label="승인 대기" value={todayPending} color="text-amber-600" highlight={todayPending > 0} 
-                isActive={filterStatus === 'pending'}
-                onClick={() => { setFilterDateMode('all'); setFilterStatus('pending'); setFilterTherapist(''); }} />
+              <StatCard label="수납 대기" value={todayDone} color="text-amber-600" highlight={todayDone > 0} 
+                isActive={filterStatus === 'done'}
+                onClick={() => { setFilterDateMode('all'); setFilterStatus('done'); setFilterTherapist(''); }} />
               <StatCard label="전체 예약" value={reservations.length} color="text-slate-700" 
                 isActive={filterDateMode === 'all' && filterStatus === ''}
                 onClick={() => { setFilterDateMode('all'); setFilterStatus(''); setFilterTherapist(''); }} />
@@ -618,9 +628,13 @@ export default function AdminPage() {
             {/* Therapist stats (This Month) */}
             <div className="card">
               <h2 className="font-bold text-slate-700 mb-3">치료사별 현황 (이번 달)</h2>
+              <p className="text-xs text-slate-500 mb-4">치료사를 클릭하여 해당 치료사의 예약만 필터링하거나 더블 클릭하여 전체 리스트로 돌아갈 수 있습니다.</p>
               <div className="grid grid-cols-2 gap-3">
                 {therapistStats.map(({ therapist: t, thisMonth, total }) => (
-                  <div key={t.id} className="flex items-center gap-3 p-3 rounded-2xl bg-slate-50">
+                  <div key={t.id} 
+                       onClick={() => setFilterTherapist(t.id)}
+                       onDoubleClick={() => setFilterTherapist('')}
+                       className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-colors border ${filterTherapist === t.id ? 'border-sky-400 bg-sky-50 shadow-sm' : 'border-transparent bg-slate-50 hover:bg-slate-100'}`}>
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold"
                          style={{ backgroundColor: t.color }}>
                       {t.name[0]}
@@ -1005,7 +1019,7 @@ export default function AdminPage() {
               
               <div className="flex justify-end px-2">
                 <button
-                  onClick={handleDeleteLogs}
+                  onClick={handleDeleteLogsClick}
                   className="text-xs px-4 py-2 bg-red-50 text-red-600 font-bold rounded-xl border border-red-100 hover:bg-red-100 transition-colors flex items-center gap-1"
                 >
                   🗑 현재 필터 로그 삭제
@@ -1194,7 +1208,7 @@ export default function AdminPage() {
                         <td className="p-4 text-center">
                           <button
                             onClick={() => {
-                              setPinChangePhone(p.phone);
+                              setPinChangePatient({ name: p.name, phone: p.phone });
                               setNewPin('');
                             }}
                             className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold px-3 py-1.5 rounded-lg transition-colors"
@@ -1217,11 +1231,11 @@ export default function AdminPage() {
             </div>
 
             {/* 비밀번호 강제 변경 팝업 */}
-            {pinChangePhone && (
+            {pinChangePatient && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
                 <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 animate-fade-in-up">
                   <h3 className="font-bold text-slate-800 text-lg">비밀번호 강제 변경</h3>
-                  <p className="text-sm text-slate-500">환자 <strong>{pinChangePhone}</strong>의 비밀번호를 새로 설정합니다.</p>
+                  <p className="text-sm text-slate-500">환자 <strong>{pinChangePatient.name} {pinChangePatient.phone}</strong>의 비밀번호를 새로 설정합니다.</p>
                   <div>
                     <label className="text-xs font-semibold text-slate-600 mb-1.5 block">새로운 PIN (4자리 숫자)</label>
                     <input
@@ -1237,7 +1251,7 @@ export default function AdminPage() {
                     <button onClick={handlePinReset} disabled={pinSaving || newPin.length !== 4} className="btn-primary flex-1 py-2 text-sm">
                       {pinSaving ? '변경 중...' : '저장하기'}
                     </button>
-                    <button onClick={() => setPinChangePhone(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
+                    <button onClick={() => setPinChangePatient(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
                   </div>
                 </div>
               </div>
@@ -1444,6 +1458,50 @@ export default function AdminPage() {
         )}
 
       </div>
+
+      {/* =========================================================================
+          로그 삭제 팝업
+      ========================================================================= */}
+      {logDeleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 animate-fade-in-up">
+            <h3 className="font-bold text-red-600 text-lg">⚠️ 로그 기록 삭제</h3>
+            <p className="text-sm text-slate-600">
+              정말로 <strong>[{logDeleteTarget.label}]</strong> 기록을 모두 삭제하시겠습니까?<br />
+              <span className="text-xs text-red-500">(실제 데이터베이스에서 영구 삭제되며 복구할 수 없습니다)</span>
+            </p>
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">관리자 비밀번호</label>
+              <div className="relative">
+                <input
+                  type={showLogDeletePassword ? 'text' : 'password'}
+                  className="input-field pr-16"
+                  placeholder="비밀번호를 입력하세요"
+                  value={logDeletePassword}
+                  onChange={(e) => setLogDeletePassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLogDeletePassword(prev => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showLogDeletePassword ? '숨기기' : '보기'}
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button 
+                onClick={confirmLogDelete} 
+                disabled={!logDeletePassword} 
+                className="btn-primary bg-red-500 hover:bg-red-600 border-red-500 hover:border-red-600 text-white font-semibold rounded-xl flex-1 py-2 text-sm transition-colors disabled:opacity-50"
+              >
+                삭제 진행
+              </button>
+              <button onClick={() => setLogDeleteTarget(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
