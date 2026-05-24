@@ -266,12 +266,14 @@ export default function AdminPage() {
 
   // --- Patients Data ---
   const patientGroups = reservations.reduce((acc, r) => {
-    if (!acc[r.patient_phone]) acc[r.patient_phone] = [];
-    acc[r.patient_phone].push(r);
+    const key = `${r.patient_phone}::${r.patient_name}`;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(r);
     return acc;
   }, {} as Record<string, Reservation[]>);
 
-  const patientsList = Object.entries(patientGroups).map(([phone, resList]) => {
+  const patientsList = Object.entries(patientGroups).map(([key, resList]) => {
+    const [phone, name] = key.split('::');
     const sorted = [...resList].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     const latest = sorted[0];
     const totalCount = resList.length;
@@ -291,7 +293,7 @@ export default function AdminPage() {
     const mainTherapist = therapists.find(t => t.id === mainTherapistId);
 
     return {
-      name: latest.patient_name,
+      name,
       phone,
       totalCount,
       paidCount,
