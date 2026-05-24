@@ -10,6 +10,7 @@ export interface Reservation {
   id: string;
   patient_name: string;
   patient_phone: string;
+  pin?: string;
   therapist_id: string | null;
   therapist?: Therapist;
   date: string;
@@ -31,6 +32,7 @@ export interface BlockedSlot {
 export interface BookingFormData {
   patientName: string;
   patientPhone: string;
+  pin: string;
   duration: 30 | 50 | null;
   therapistId: string | null; // null = 상관없음
   date: string | null;

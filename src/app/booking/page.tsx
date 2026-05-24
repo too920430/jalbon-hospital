@@ -19,6 +19,7 @@ export default function BookingPage() {
   const [form, setForm] = useState<BookingFormData>({
     patientName: '',
     patientPhone: '',
+    pin: '',
     duration: null,
     therapistId: null,
     date: null,
@@ -73,7 +74,7 @@ export default function BookingPage() {
   };
 
   const canNext = (): boolean => {
-    if (step === 1) return form.patientName.trim().length >= 2 && form.patientPhone.replace(/\D/g, '').length >= 10;
+    if (step === 1) return form.patientName.trim().length >= 2 && form.patientPhone.replace(/\D/g, '').length >= 10 && form.pin.trim().length === 4;
     if (step === 2) return form.duration !== null;
     if (step === 3) return true; // 치료사는 선택 안 해도 됨 (상관없음)
     if (step === 4) return form.date !== null;
@@ -99,6 +100,7 @@ export default function BookingPage() {
     const result = await createReservation({
       patientName: form.patientName.trim(),
       patientPhone: form.patientPhone,
+      pin: form.pin,
       therapistId: form.therapistId,
       date: form.date,
       startTime: form.startTime,
@@ -124,7 +126,7 @@ export default function BookingPage() {
           </Link>
           <div>
             <h1 className="font-bold text-slate-800 text-base">도수치료 예약</h1>
-            <p className="text-xs text-slate-400">마산 잘본병원</p>
+            <p className="text-xs text-slate-400">창원 본앤밸런스</p>
           </div>
         </div>
         {/* Step indicator */}
@@ -177,6 +179,22 @@ export default function BookingPage() {
                   onChange={(e) => handlePhoneInput(e.target.value)}
                   inputMode="numeric"
                 />
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-slate-600 mb-1.5 block" htmlFor="patient-pin">
+                  예약 비밀번호 (PIN 4자리) *
+                </label>
+                <input
+                  id="patient-pin"
+                  className="input-field"
+                  placeholder="예: 1234"
+                  type="password"
+                  maxLength={4}
+                  value={form.pin}
+                  onChange={(e) => setForm((f) => ({ ...f, pin: e.target.value.replace(/\D/g, '') }))}
+                  inputMode="numeric"
+                />
+                <p className="text-xs text-slate-400 mt-1">예약 조회 시 사용되는 비밀번호입니다.</p>
               </div>
             </div>
           </div>

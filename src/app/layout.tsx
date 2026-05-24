@@ -2,11 +2,11 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: '마산 잘본병원 도수치료 예약',
-  description: '마산 잘본병원 도수치료실 온라인 예약 시스템입니다. 편리하게 예약하세요.',
-  keywords: '도수치료, 마산, 잘본병원, 재활의학과, 예약',
+  title: '창원 본앤밸런스 도수치료 예약',
+  description: '창원 본앤밸런스 도수치료실 온라인 예약 시스템입니다. 편리하게 예약하세요.',
+  keywords: '도수치료, 창원, 본앤밸런스, 재활의학과, 예약',
   openGraph: {
-    title: '마산 잘본병원 도수치료 예약',
+    title: '창원 본앤밸런스 도수치료 예약',
     description: '도수치료실 온라인 예약',
     locale: 'ko_KR',
   },

@@ -23,11 +23,11 @@ export default function HomePage() {
           {/* Hospital name */}
           <h1 className="text-4xl font-extrabold mb-2 animate-fade-in-up"
               style={{ animationDelay: '0.05s' }}>
-            잘본병원
+            본앤밸런스
           </h1>
           <p className="text-sky-100 text-lg mb-1 animate-fade-in-up"
              style={{ animationDelay: '0.1s' }}>
-            마산 양덕동
+            창원 중동중앙로 47 어반브릭스 오피스타워 18층 1806호
           </p>
           <p className="text-sky-200 text-sm animate-fade-in-up"
              style={{ animationDelay: '0.15s' }}>

@@ -231,6 +231,7 @@ export default function TherapistDashboard() {
                     <div className="space-y-1 text-sm text-slate-600 mb-3">
                       <p>👤 <strong>{res.patient_name}</strong></p>
                       <p>📱 {res.patient_phone}</p>
+                      {res.pin && <p className="text-xs text-slate-400 mt-1">🔒 PIN: {res.pin}</p>}
                     </div>
 
                     {/* Action buttons */}

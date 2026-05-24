@@ -20,6 +20,7 @@ export async function getTherapists(): Promise<Therapist[]> {
 export async function createReservation(params: {
   patientName: string;
   patientPhone: string;
+  pin: string;
   therapistId: string | null;
   date: string;
   startTime: string;
@@ -32,6 +33,7 @@ export async function createReservation(params: {
       id: `res-${Date.now()}`,
       patient_name: params.patientName,
       patient_phone: params.patientPhone,
+      pin: params.pin,
       therapist_id: params.therapistId,
       date: params.date,
       start_time: params.startTime,
@@ -47,6 +49,7 @@ export async function createReservation(params: {
   const { error } = await supabase.from('reservations').insert({
     patient_name: params.patientName,
     patient_phone: params.patientPhone,
+    pin: params.pin,
     therapist_id: params.therapistId,
     date: params.date,
     start_time: params.startTime,
@@ -60,13 +63,20 @@ export async function createReservation(params: {
 // ─── 예약 조회 (환자) ────────────────────────────────
 export async function getPatientReservations(
   name: string,
-  phone: string
-): Promise<Reservation[]> {
+  phone: string,
+  pin: string
+): Promise<{ data: Reservation[]; error?: 'not_found' | 'wrong_pin' }> {
   if (!isSupabaseConfigured) {
-    return getLocalReservations().filter(
+    const allMatchingNamePhone = getLocalReservations().filter(
       (r) => r.patient_name === name && r.patient_phone === phone
     );
+    if (allMatchingNamePhone.length === 0) return { data: [], error: 'not_found' };
+    const matchingPin = allMatchingNamePhone.filter((r) => r.pin === pin);
+    if (matchingPin.length === 0) return { data: [], error: 'wrong_pin' };
+    return { data: matchingPin };
   }
+  
+  // 먼저 이름과 전화번호로 모두 찾음
   const { data, error } = await supabase
     .from('reservations')
     .select('*, therapist:therapists(*)')
@@ -74,8 +84,14 @@ export async function getPatientReservations(
     .eq('patient_phone', phone)
     .order('date', { ascending: false })
     .order('start_time', { ascending: false });
-  if (error) return [];
-  return data as Reservation[];
+    
+  if (error || !data || data.length === 0) return { data: [], error: 'not_found' };
+  
+  // 비밀번호 일치하는 것만 필터링 (여러 예약 중 하나라도 맞으면 그 PIN으로 된 예약만 반환, 또는 모두 반환할 수 있으나 보통 PIN은 동일함)
+  const matchingPin = data.filter((r: Reservation) => r.pin === pin);
+  if (matchingPin.length === 0) return { data: [], error: 'wrong_pin' };
+  
+  return { data: matchingPin as Reservation[] };
 }
 
 // ─── 슬롯 예약 현황 조회 ─────────────────────────────

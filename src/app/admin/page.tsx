@@ -125,7 +125,7 @@ export default function AdminPage() {
             </div>
             <div>
               <h1 className="font-bold text-slate-800">관리자 대시보드</h1>
-              <p className="text-xs text-slate-400">마산 잘본병원 도수치료실</p>
+              <p className="text-xs text-slate-400">창원 본앤밸런스 도수치료실</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -271,6 +271,7 @@ export default function AdminPage() {
                               <td className="px-4 py-3">
                                 <p className="font-medium text-slate-700">{res.patient_name}</p>
                                 <p className="text-slate-400 text-xs">{res.patient_phone}</p>
+                                {res.pin && <p className="text-slate-400 text-xs mt-0.5">PIN: {res.pin}</p>}
                               </td>
                               <td className="px-4 py-3">
                                 {th ? (

@@ -64,7 +64,7 @@ export default function TherapistLoginPage() {
             🏥
           </div>
           <h1 className="text-2xl font-extrabold text-slate-800">직원 로그인</h1>
-          <p className="text-slate-500 text-sm mt-1">마산 잘본병원 도수치료실</p>
+          <p className="text-slate-500 text-sm mt-1">창원 본앤밸런스 도수치료실</p>
         </div>
 
         <div className="card space-y-4">

@@ -16,9 +16,11 @@ const STATUS_MAP = {
 export default function MyBookingPage() {
   const [name, setName]           = useState('');
   const [phone, setPhone]         = useState('');
+  const [pin, setPin]             = useState('');
   const [searched, setSearched]   = useState(false);
   const [loading, setLoading]     = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [searchError, setSearchError] = useState<'not_found' | 'wrong_pin' | null>(null);
 
   const handlePhoneInput = (v: string) => {
     const digits = v.replace(/\D/g, '').slice(0, 11);
@@ -32,10 +34,12 @@ export default function MyBookingPage() {
   };
 
   const handleSearch = async () => {
-    if (!name.trim() || phone.replace(/\D/g, '').length < 10) return;
+    if (!name.trim() || phone.replace(/\D/g, '').length < 10 || pin.length < 4) return;
     setLoading(true);
-    const data = await getPatientReservations(name.trim(), phone);
-    setReservations(data);
+    setSearchError(null);
+    const result = await getPatientReservations(name.trim(), phone, pin);
+    setReservations(result.data);
+    setSearchError(result.error || null);
     setSearched(true);
     setLoading(false);
   };
@@ -50,7 +54,7 @@ export default function MyBookingPage() {
           </Link>
           <div>
             <h1 className="font-bold text-slate-800 text-base">내 예약 확인</h1>
-            <p className="text-xs text-slate-400">마산 잘본병원</p>
+            <p className="text-xs text-slate-400">창원 본앤밸런스</p>
           </div>
         </div>
       </header>
@@ -83,10 +87,24 @@ export default function MyBookingPage() {
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
           </div>
+          <div>
+            <label className="text-sm font-semibold text-slate-600 mb-1.5 block" htmlFor="search-pin">예약 비밀번호 (PIN)</label>
+            <input
+              id="search-pin"
+              className="input-field"
+              placeholder="예: 1234"
+              type="password"
+              maxLength={4}
+              inputMode="numeric"
+              value={pin}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+          </div>
           <button
             id="search-btn"
             onClick={handleSearch}
-            disabled={loading || !name.trim() || phone.replace(/\D/g, '').length < 10}
+            disabled={loading || !name.trim() || phone.replace(/\D/g, '').length < 10 || pin.length < 4}
             className="btn-primary"
           >
             {loading ? '조회 중...' : '예약 조회하기'}
@@ -96,7 +114,13 @@ export default function MyBookingPage() {
         {/* Results */}
         {searched && !loading && (
           <div className="animate-fade-in-up space-y-3">
-            {reservations.length === 0 ? (
+            {searchError === 'wrong_pin' ? (
+              <div className="card text-center py-12">
+                <div className="text-4xl mb-3">🔒</div>
+                <p className="font-semibold text-red-500 mb-1">비밀번호가 틀렸습니다</p>
+                <p className="text-slate-400 text-sm">PIN 번호를 다시 확인해 주세요</p>
+              </div>
+            ) : searchError === 'not_found' || reservations.length === 0 ? (
               <div className="card text-center py-12">
                 <div className="text-4xl mb-3">📭</div>
                 <p className="font-semibold text-slate-700 mb-1">예약 내역이 없습니다</p>
