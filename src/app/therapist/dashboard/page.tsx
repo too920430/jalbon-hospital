@@ -360,7 +360,7 @@ export default function TherapistDashboard() {
                           </span>
                           {!res.therapist_id && (
                             <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-bold">
-                              상관없음 (선착순)
+                              치료사 미지정
                             </span>
                           )}
                         </div>
