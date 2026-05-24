@@ -855,6 +855,18 @@ export default function AdminPage() {
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex gap-2">
+                                  {res.status === 'done' && (
+                                    <button onClick={async () => {
+                                      if (!confirm('수납을 완료 처리하시겠습니까?')) return;
+                                      const success = await updateReservationStatus(res.id, 'paid');
+                                      if (success) {
+                                        await insertAuditLog('PAYMENT_COMPLETED', '관리자', { patientName: res.patient_name, date: res.date, time: res.start_time });
+                                        await loadData();
+                                      } else {
+                                        alert('상태 변경 실패');
+                                      }
+                                    }} className="text-xs text-indigo-600 font-semibold px-2 py-1 rounded-lg border border-indigo-200">💰 수납완료</button>
+                                  )}
                                   <button onClick={() => startEdit(res)} className="text-xs text-sky-600 font-semibold px-2 py-1 rounded-lg border border-sky-200">📅 수정</button>
                                 </div>
                               </td>
@@ -927,7 +939,7 @@ export default function AdminPage() {
                 <div className="flex bg-slate-50 p-1 rounded-xl gap-1 overflow-x-auto">
                   {[
                     { id: 'all', label: '전체보기' },
-                    { id: 'THERAPIST_LOGIN', label: '치료사 로그인' },
+                    { id: 'THERAPIST_LOGIN', label: '로그인 내역' },
                     { id: 'PATIENT_BOOKING', label: '환자 예약' },
                     { id: 'RESERVATION_APPROVED', label: '예약 승인' },
                     { id: 'TREATMENT_COMPLETED', label: '치료 완료' },
@@ -959,7 +971,7 @@ export default function AdminPage() {
                     let icon = '📝';
                     let bgColor = 'bg-slate-50';
                     let title = '';
-                    let desc = '';
+                    let desc: React.ReactNode = '';
                     
                     if (log.action_type === 'PATIENT_BOOKING') {
                       icon = '📅';
@@ -967,10 +979,18 @@ export default function AdminPage() {
                       title = '환자 예약 접수';
                       desc = `${log.actor_name} 환자님이 ${log.details?.date || ''} ${log.details?.time?.slice(0,5) || ''} 예약을 접수했습니다.`;
                     } else if (log.action_type === 'THERAPIST_LOGIN') {
-                      icon = '🔑';
-                      bgColor = 'bg-emerald-50';
-                      title = '치료사 로그인';
-                      desc = `${log.actor_name}님이 시스템에 로그인했습니다.`;
+                      if (log.actor_name === '관리자') {
+                        icon = '🛡️';
+                        bgColor = 'bg-fuchsia-50';
+                        title = '관리자 로그인';
+                        desc = <span className="text-fuchsia-700 font-bold">관리자가 시스템에 로그인했습니다.</span>;
+                      } else {
+                        const th = therapists.find((t) => t.name === log.actor_name);
+                        icon = '👩‍⚕️';
+                        bgColor = 'bg-emerald-50';
+                        title = '치료사 로그인';
+                        desc = <span><span style={{ color: th?.color || '#0ea5e9' }} className="font-bold">{log.actor_name}</span>님이 시스템에 로그인했습니다.</span>;
+                      }
                     } else if (log.action_type === 'RESERVATION_CANCELED') {
                       icon = '🗑';
                       bgColor = 'bg-red-50';
