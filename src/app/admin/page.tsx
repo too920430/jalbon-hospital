@@ -826,7 +826,7 @@ export default function AdminPage() {
                   if (day === null) return <div key={`empty-${idx}`} className="h-20 rounded-xl bg-slate-50/50" />;
                   
                   const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                  let dayRes = monthlyReservations.filter(r => r.date === dateStr);
+                  let dayRes = monthlyReservations.filter(r => r.date === dateStr && r.status === 'paid');
                   if (selectedTherapistId) {
                     if (selectedTherapistId === 'unassigned') {
                       dayRes = dayRes.filter(r => r.therapist_id === null);
