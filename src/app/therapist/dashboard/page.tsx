@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
-import { getTherapistReservations, updateReservationStatus, updateReservationDateTime } from '@/lib/api';
-import { formatDate, formatTime, toDateStr, formatTherapistName } from '@/lib/slots';
+import { getTherapistReservations, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds } from '@/lib/api';
+import { formatDate, formatTime, toDateStr, formatTherapistName, getAvailableSlots, isOpenDay } from '@/lib/slots';
 
 const STATUS_MAP = {
   pending:  { label: '승인 대기', color: 'bg-amber-100 text-amber-700' },
@@ -29,6 +29,8 @@ export default function TherapistDashboard() {
   const [editDate, setEditDate] = useState('');
   const [editTime, setEditTime] = useState('');
   const [editDuration, setEditDuration] = useState<30 | 50>(50);
+  const [editSlotAvailability, setEditSlotAvailability] = useState<{ [time: string]: number }>({});
+  const [editMaxBeds, setEditMaxBeds] = useState(5);
 
   // 스탯 카드 필터 상태
   const [showAll, setShowAll] = useState(false);
@@ -65,6 +67,21 @@ export default function TherapistDashboard() {
     setEditDate(res.date);
     setEditTime(res.start_time.slice(0, 5));
     setEditDuration(res.duration);
+    setEditMaxBeds(getMaxBeds());
+    // 해당 날짜 슬롯 가용성 조회
+    getSlotAvailability(res.date, null).then(setEditSlotAvailability);
+  };
+
+  // 편집 날짜/치료시간 변경 시 슬롯 재조회
+  const handleEditDateChange = (date: string) => {
+    setEditDate(date);
+    setEditTime(''); // 날짜 바뀌면 시간 초기화
+    if (date) getSlotAvailability(date, null).then(setEditSlotAvailability);
+  };
+
+  const handleEditDurationChange = (dur: 30 | 50) => {
+    setEditDuration(dur);
+    setEditTime(''); // 치료시간 바뀌면 시간 초기화
   };
 
   const handleEditSave = async (res: Reservation) => {
@@ -335,6 +352,7 @@ export default function TherapistDashboard() {
                       {isEditing ? (
                         <div className="mt-2 p-3 bg-sky-50 rounded-2xl border border-sky-100 space-y-3">
                           <p className="text-xs font-bold text-sky-700">📅 날짜/시간 변경</p>
+                          {/* 날짜 + 치료시간 */}
                           <div className="flex gap-2">
                             <div className="flex-1">
                               <label className="text-xs text-slate-500 mb-1 block">날짜</label>
@@ -342,7 +360,7 @@ export default function TherapistDashboard() {
                                 type="date"
                                 className="input-field text-sm"
                                 value={editDate}
-                                onChange={(e) => setEditDate(e.target.value)}
+                                onChange={(e) => handleEditDateChange(e.target.value)}
                               />
                             </div>
                             <div className="w-24">
@@ -350,24 +368,111 @@ export default function TherapistDashboard() {
                               <select
                                 className="input-field text-sm"
                                 value={editDuration}
-                                onChange={(e) => setEditDuration(Number(e.target.value) as 30 | 50)}
+                                onChange={(e) => handleEditDurationChange(Number(e.target.value) as 30 | 50)}
                               >
                                 <option value={30}>30분</option>
                                 <option value={50}>50분</option>
                               </select>
                             </div>
                           </div>
-                          <div>
-                            <label className="text-xs text-slate-500 mb-1 block">시작 시간</label>
-                            <input
-                              type="time"
-                              className="input-field text-sm"
-                              value={editTime}
-                              onChange={(e) => setEditTime(e.target.value)}
-                              step={1800}
-                            />
-                          </div>
-                          <div className="flex gap-2">
+
+                          {/* 시간 슬롯 그리드 */}
+                          {editDate && (() => {
+                            const dateObj = new Date(editDate + 'T00:00:00');
+                            const slots = getAvailableSlots(dateObj, editDuration);
+                            if (!isOpenDay(dateObj)) return (
+                              <p className="text-xs text-red-400 text-center py-2">해당 날짜는 휴무입니다</p>
+                            );
+                            if (slots.length === 0) return (
+                              <p className="text-xs text-slate-400 text-center py-2">예약 가능한 시간이 없습니다</p>
+                            );
+
+                            const amSlots = slots.filter(t => parseInt(t.split(':')[0]) < 12);
+                            const pmSlots = slots.filter(t => parseInt(t.split(':')[0]) >= 12);
+
+                            return (
+                              <div className="space-y-2">
+                                <label className="text-xs text-slate-500 block">시작 시간 선택</label>
+                                {amSlots.length > 0 && (
+                                  <div>
+                                    <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">오전</p>
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                      {amSlots.map(time => {
+                                        const count = editSlotAvailability[time] || 0;
+                                        // 현재 수정 중인 예약의 원래 슬롯은 1개 빼서 계산 (본인 자리 제외)
+                                        const occupied = (res.date === editDate && res.start_time.slice(0,5) === time)
+                                          ? Math.max(0, count - 1) : count;
+                                        const isFull = occupied >= editMaxBeds;
+                                        const isSelected = editTime === time;
+                                        return (
+                                          <button
+                                            key={time}
+                                            disabled={isFull}
+                                            onClick={() => !isFull && setEditTime(time)}
+                                            className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                                              isSelected
+                                                ? 'bg-sky-500 text-white shadow-sm'
+                                                : isFull
+                                                  ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                                  : 'bg-white border border-sky-200 text-slate-700 hover:bg-sky-50'
+                                            }`}
+                                          >
+                                            {formatTime(time)}
+                                            {isFull && <div className="text-[9px] leading-tight">마감</div>}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                                {pmSlots.length > 0 && (
+                                  <div>
+                                    <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">오후</p>
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                      {pmSlots.map(time => {
+                                        const count = editSlotAvailability[time] || 0;
+                                        const occupied = (res.date === editDate && res.start_time.slice(0,5) === time)
+                                          ? Math.max(0, count - 1) : count;
+                                        const isFull = occupied >= editMaxBeds;
+                                        const isSelected = editTime === time;
+                                        return (
+                                          <button
+                                            key={time}
+                                            disabled={isFull}
+                                            onClick={() => !isFull && setEditTime(time)}
+                                            className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                                              isSelected
+                                                ? 'bg-sky-500 text-white shadow-sm'
+                                                : isFull
+                                                  ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                                  : 'bg-white border border-sky-200 text-slate-700 hover:bg-sky-50'
+                                            }`}
+                                          >
+                                            {formatTime(time)}
+                                            {isFull && <div className="text-[9px] leading-tight">마감</div>}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                                {/* 범례 */}
+                                <div className="flex gap-3 text-[10px] text-slate-400 pt-1">
+                                  <span className="flex items-center gap-1">
+                                    <span className="w-2.5 h-2.5 rounded bg-white border border-sky-200" /> 예약 가능
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <span className="w-2.5 h-2.5 rounded bg-sky-500" /> 선택됨
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <span className="w-2.5 h-2.5 rounded bg-slate-100" /> 마감
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })()}
+
+                          <div className="flex gap-2 pt-1">
                             <button
                               onClick={() => handleEditSave(res)}
                               disabled={actionLoading === res.id || !editDate || !editTime}

@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
-import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime } from '@/lib/api';
-import { formatDate, formatTime, toDateStr } from '@/lib/slots';
+import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds } from '@/lib/api';
+import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay } from '@/lib/slots';
 
 const STATUS_MAP = {
   pending:  { label: '승인 대기', color: 'bg-amber-100 text-amber-700' },
@@ -31,6 +31,7 @@ export default function AdminPage() {
   const [editTime, setEditTime] = useState('');
   const [editDuration, setEditDuration] = useState<30 | 50>(50);
   const [editSaving, setEditSaving] = useState(false);
+  const [editSlotAvailability, setEditSlotAvailability] = useState<{ [time: string]: number }>({});
 
   // Tabs & Dates
   const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly'>('overview');
@@ -71,6 +72,18 @@ export default function AdminPage() {
     setEditDate(res.date);
     setEditTime(res.start_time.slice(0, 5));
     setEditDuration(res.duration);
+    getSlotAvailability(res.date, null).then(setEditSlotAvailability);
+  };
+
+  const handleAdminEditDateChange = (date: string) => {
+    setEditDate(date);
+    setEditTime('');
+    if (date) getSlotAvailability(date, null).then(setEditSlotAvailability);
+  };
+
+  const handleAdminEditDurationChange = (dur: 30 | 50) => {
+    setEditDuration(dur);
+    setEditTime('');
   };
 
   const handleEditSave = async () => {
@@ -143,8 +156,8 @@ export default function AdminPage() {
 
       {/* 날짜/시간 수정 모달 */}
       {editingRes && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4 animate-fade-in-up">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 overflow-y-auto py-8">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4 animate-fade-in-up my-auto">
             <div>
               <h2 className="font-bold text-slate-800 text-lg">📅 예약 날짜/시간 변경</h2>
               <p className="text-sm text-slate-500 mt-1">
@@ -152,24 +165,15 @@ export default function AdminPage() {
               </p>
             </div>
             <div className="space-y-3">
-              <div>
-                <label className="text-sm font-semibold text-slate-600 mb-1.5 block">날짜</label>
-                <input
-                  type="date"
-                  className="input-field"
-                  value={editDate}
-                  onChange={(e) => setEditDate(e.target.value)}
-                />
-              </div>
+              {/* 날짜 + 치료시간 */}
               <div className="flex gap-3">
                 <div className="flex-1">
-                  <label className="text-sm font-semibold text-slate-600 mb-1.5 block">시작 시간</label>
+                  <label className="text-sm font-semibold text-slate-600 mb-1.5 block">날짜</label>
                   <input
-                    type="time"
+                    type="date"
                     className="input-field"
-                    value={editTime}
-                    onChange={(e) => setEditTime(e.target.value)}
-                    step={1800}
+                    value={editDate}
+                    onChange={(e) => handleAdminEditDateChange(e.target.value)}
                   />
                 </div>
                 <div className="w-28">
@@ -177,13 +181,97 @@ export default function AdminPage() {
                   <select
                     className="input-field"
                     value={editDuration}
-                    onChange={(e) => setEditDuration(Number(e.target.value) as 30 | 50)}
+                    onChange={(e) => handleAdminEditDurationChange(Number(e.target.value) as 30 | 50)}
                   >
                     <option value={30}>30분</option>
                     <option value={50}>50분</option>
                   </select>
                 </div>
               </div>
+
+              {/* 시간 슬롯 그리드 */}
+              {editDate && (() => {
+                const dateObj = new Date(editDate + 'T00:00:00');
+                const slots = getAvailableSlots(dateObj, editDuration);
+                const adminMaxBeds = getMaxBeds();
+                if (!isOpenDay(dateObj)) return (
+                  <p className="text-xs text-red-400 text-center py-2">해당 날짜는 휴무입니다</p>
+                );
+                if (slots.length === 0) return (
+                  <p className="text-xs text-slate-400 text-center py-2">예약 가능한 시간이 없습니다</p>
+                );
+                const amSlots = slots.filter(t => parseInt(t.split(':')[0]) < 12);
+                const pmSlots = slots.filter(t => parseInt(t.split(':')[0]) >= 12);
+                return (
+                  <div className="space-y-2">
+                    <label className="text-sm font-semibold text-slate-600 block">시작 시간 선택</label>
+                    {amSlots.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">오전</p>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {amSlots.map(time => {
+                            const count = editSlotAvailability[time] || 0;
+                            const occupied = (editingRes.date === editDate && editingRes.start_time.slice(0,5) === time)
+                              ? Math.max(0, count - 1) : count;
+                            const isFull = occupied >= adminMaxBeds;
+                            const isSelected = editTime === time;
+                            return (
+                              <button key={time} disabled={isFull}
+                                onClick={() => !isFull && setEditTime(time)}
+                                className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                                  isSelected ? 'bg-sky-500 text-white shadow-sm'
+                                  : isFull ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                  : 'bg-slate-50 border border-sky-200 text-slate-700 hover:bg-sky-50'
+                                }`}>
+                                {formatTime(time)}
+                                {isFull && <div className="text-[9px] leading-tight">마감</div>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {pmSlots.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">오후</p>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {pmSlots.map(time => {
+                            const count = editSlotAvailability[time] || 0;
+                            const occupied = (editingRes.date === editDate && editingRes.start_time.slice(0,5) === time)
+                              ? Math.max(0, count - 1) : count;
+                            const isFull = occupied >= adminMaxBeds;
+                            const isSelected = editTime === time;
+                            return (
+                              <button key={time} disabled={isFull}
+                                onClick={() => !isFull && setEditTime(time)}
+                                className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                                  isSelected ? 'bg-sky-500 text-white shadow-sm'
+                                  : isFull ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                  : 'bg-slate-50 border border-sky-200 text-slate-700 hover:bg-sky-50'
+                                }`}>
+                                {formatTime(time)}
+                                {isFull && <div className="text-[9px] leading-tight">마감</div>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {/* 범례 */}
+                    <div className="flex gap-3 text-[10px] text-slate-400 pt-1">
+                      <span className="flex items-center gap-1">
+                        <span className="w-2.5 h-2.5 rounded bg-slate-50 border border-sky-200" /> 예약 가능
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2.5 h-2.5 rounded bg-sky-500" /> 선택됨
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2.5 h-2.5 rounded bg-slate-100" /> 마감
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             <div className="flex gap-3 pt-2">
               <button
