@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { BookingFormData, Therapist } from '@/lib/types';
-import { getAvailableSlots, formatTime, formatDate, toDateStr, isOpenDay, formatTherapistName, getOccupiedCountForSlot } from '@/lib/slots';
+import { getAvailableSlots, formatTime, formatDate, toDateStr, isOpenDay, formatTherapistName, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 import { getTherapists, createReservation, getSlotAvailability, getMaxBeds } from '@/lib/api';
 
 const STEPS = ['내 정보', '치료 시간', '치료사', '날짜', '시간', '확인'];
@@ -64,8 +64,12 @@ export default function BookingPage() {
     ? getAvailableSlots(new Date(form.date + 'T00:00:00'), form.duration)
     : [];
 
-  const getSlotStatus = (time: string): 'available' | 'selected' | 'full' => {
+  const getSlotStatus = (time: string): string => {
     if (form.startTime === time) return 'selected';
+    if (form.date) {
+      const err = getSlotError(time, form.duration || 50, new Date(form.date + 'T00:00:00'));
+      if (err) return err;
+    }
     const count = getOccupiedCountForSlot(time, form.duration || 50, availability);
     if (form.therapistId) {
       return count >= 1 ? 'full' : 'available';
@@ -392,14 +396,18 @@ export default function BookingPage() {
                           <button
                             key={time}
                             id={`slot-${time}`}
-                            onClick={() => status !== 'full' && setForm(f => ({ ...f, startTime: time }))}
+                            onClick={() => (status === 'available') && setForm(f => ({ ...f, startTime: time }))}
                             className={`slot-btn ${
                               status === 'selected' ? 'slot-selected' :
-                              status === 'full' ? 'slot-full' : 'slot-available'
+                              status === 'available' ? 'slot-available' : 'slot-full'
                             }`}
                           >
                             {formatTime(time)}
-                            {status === 'full' && <div className="text-xs">마감</div>}
+                            {status !== 'available' && status !== 'selected' && (
+                              <div className="text-[10px] leading-tight mt-0.5 break-keep">
+                                {status === 'full' ? '마감' : status}
+                              </div>
+                            )}
                           </button>
                         );
                       })}
@@ -418,14 +426,18 @@ export default function BookingPage() {
                           <button
                             key={time}
                             id={`slot-${time}`}
-                            onClick={() => status !== 'full' && setForm(f => ({ ...f, startTime: time }))}
+                            onClick={() => (status === 'available') && setForm(f => ({ ...f, startTime: time }))}
                             className={`slot-btn ${
                               status === 'selected' ? 'slot-selected' :
-                              status === 'full' ? 'slot-full' : 'slot-available'
+                              status === 'available' ? 'slot-available' : 'slot-full'
                             }`}
                           >
                             {formatTime(time)}
-                            {status === 'full' && <div className="text-xs">마감</div>}
+                            {status !== 'available' && status !== 'selected' && (
+                              <div className="text-[10px] leading-tight mt-0.5 break-keep">
+                                {status === 'full' ? '마감' : status}
+                              </div>
+                            )}
                           </button>
                         );
                       })}

@@ -16,26 +16,50 @@ export function getAvailableSlots(date: Date, duration: 30 | 50): string[] {
     slots.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
   };
 
+  const interval = 30;
   if (dayOfWeek === 6) {
-    // 토요일: 09:00 ~ 13:00, 점심 없음
-    const interval = duration === 30 ? 30 : 60;
-    for (let t = 9 * 60; t + duration <= 13 * 60; t += interval) {
+    // 토요일: 09:00 ~ 12:30 시작 가능
+    for (let t = 9 * 60; t <= 13 * 60 - 30; t += interval) {
       addSlot(t);
     }
   } else {
-    // 평일: 오전 09:00 ~ (점심 전) + 오후 13:30 ~18:00
-    const interval = duration === 30 ? 30 : 60;
-    // 오전
-    for (let t = 9 * 60; t + duration <= 12 * 60 + 30; t += interval) {
+    // 평일: 오전 09:00 ~ 12:00 시작 가능, 오후 13:30 ~ 17:30 시작 가능
+    for (let t = 9 * 60; t <= 12 * 60; t += interval) {
       addSlot(t);
     }
-    // 오후
-    for (let t = 13 * 60 + 30; t + duration <= 18 * 60; t += interval) {
+    for (let t = 13 * 60 + 30; t <= 18 * 60 - 30; t += interval) {
       addSlot(t);
     }
   }
 
   return slots;
+}
+
+export function getSlotError(time: string, duration: number, date: Date): string | null {
+  const dayOfWeek = date.getDay();
+  if (dayOfWeek === 0) return '휴무일';
+  const isSaturday = dayOfWeek === 6;
+
+  const [h, m] = time.split(':').map(Number);
+  const startMins = h * 60 + m;
+  const endMins = startMins + duration;
+
+  // 점심시간 겹침 체크 (평일 12:30 ~ 13:30)
+  if (!isSaturday) {
+    const lunchStart = 12 * 60 + 30; // 750
+    const lunchEnd = 13 * 60 + 30;   // 810
+    if (Math.max(startMins, lunchStart) < Math.min(endMins, lunchEnd)) {
+      return '점심시간 겹침';
+    }
+  }
+
+  // 영업종료 겹침 체크 (평일 18:00, 토요일 13:00)
+  const closeMins = isSaturday ? 13 * 60 : 18 * 60;
+  if (endMins > closeMins) {
+    return '영업종료';
+  }
+
+  return null;
 }
 
 /** HH:MM -> 오전/오후 h:mm 형식 */

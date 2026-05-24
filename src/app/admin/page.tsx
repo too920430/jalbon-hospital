@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
 import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds } from '@/lib/api';
-import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot } from '@/lib/slots';
+import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
   pending:  { label: '승인 대기', color: 'bg-amber-100 text-amber-700' },
@@ -210,20 +210,22 @@ export default function AdminPage() {
                         <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">오전</p>
                         <div className="grid grid-cols-3 gap-1.5">
                           {amSlots.map(time => {
+                            const err = getSlotError(time, editDuration, dateObj);
                             const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, editingRes.id);
                             const limit = editingRes.therapist_id ? 1 : adminMaxBeds;
                             const isFull = count >= limit;
                             const isSelected = editTime === time;
+                            const isDisabled = isFull || err !== null;
                             return (
-                              <button key={time} disabled={isFull}
-                                onClick={() => !isFull && setEditTime(time)}
+                              <button key={time} disabled={isDisabled}
+                                onClick={() => !isDisabled && setEditTime(time)}
                                 className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${
                                   isSelected ? 'bg-sky-500 text-white shadow-sm'
-                                  : isFull ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                  : isDisabled ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
                                   : 'bg-slate-50 border border-sky-200 text-slate-700 hover:bg-sky-50'
                                 }`}>
                                 {formatTime(time)}
-                                {isFull && <div className="text-[9px] leading-tight">마감</div>}
+                                {isDisabled && !isSelected && <div className="text-[9px] leading-tight break-keep">{err || '마감'}</div>}
                               </button>
                             );
                           })}
@@ -235,20 +237,22 @@ export default function AdminPage() {
                         <p className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">오후</p>
                         <div className="grid grid-cols-3 gap-1.5">
                           {pmSlots.map(time => {
+                            const err = getSlotError(time, editDuration, dateObj);
                             const count = getOccupiedCountForSlot(time, editDuration, editSlotAvailability, editingRes.id);
                             const limit = editingRes.therapist_id ? 1 : adminMaxBeds;
                             const isFull = count >= limit;
                             const isSelected = editTime === time;
+                            const isDisabled = isFull || err !== null;
                             return (
-                              <button key={time} disabled={isFull}
-                                onClick={() => !isFull && setEditTime(time)}
+                              <button key={time} disabled={isDisabled}
+                                onClick={() => !isDisabled && setEditTime(time)}
                                 className={`py-1.5 rounded-xl text-xs font-semibold transition-all ${
                                   isSelected ? 'bg-sky-500 text-white shadow-sm'
-                                  : isFull ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                                  : isDisabled ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
                                   : 'bg-slate-50 border border-sky-200 text-slate-700 hover:bg-sky-50'
                                 }`}>
                                 {formatTime(time)}
-                                {isFull && <div className="text-[9px] leading-tight">마감</div>}
+                                {isDisabled && !isSelected && <div className="text-[9px] leading-tight break-keep">{err || '마감'}</div>}
                               </button>
                             );
                           })}
