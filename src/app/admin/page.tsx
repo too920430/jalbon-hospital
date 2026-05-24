@@ -92,7 +92,7 @@ export default function AdminPage() {
   const [pinSaving, setPinSaving] = useState(false);
   
   // Log Delete Modal State
-  const [logDeleteTarget, setLogDeleteTarget] = useState<{actionType?: string, label: string} | null>(null);
+  const [logDeleteTarget, setLogDeleteTarget] = useState<{actionType?: string, type?: string, label: string} | null>(null);
   const [logDeletePassword, setLogDeletePassword] = useState('');
   const [showLogDeletePassword, setShowLogDeletePassword] = useState(false);
   const [settlementMonth, setSettlementMonth] = useState(() => {
