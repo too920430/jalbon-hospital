@@ -738,7 +738,7 @@ export default function AdminPage() {
               <div className="grid grid-cols-2 gap-3">
                 {therapistStats.map(({ therapist: t, thisMonth, total }) => (
                   <div key={t.id} 
-                       onClick={() => { setFilterTherapist(t.id); setFilterDateMode('month'); setFilterStatus(''); setListMonth(currentMonthString); }}
+                       onClick={() => { setFilterTherapist(t.id); setFilterDateMode('month'); setFilterStatus(''); setListMonth(selectedMonthString); }}
                        className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-colors border ${filterTherapist === t.id ? 'border-sky-400 bg-sky-50 shadow-sm' : 'border-transparent bg-slate-50 hover:bg-slate-100'}`}>
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold"
                          style={{ backgroundColor: t.color }}>
