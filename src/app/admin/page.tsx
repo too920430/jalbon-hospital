@@ -894,11 +894,34 @@ export default function AdminPage() {
                 </h2>
                 <button onClick={nextMonth} className="text-slate-400 hover:text-sky-500 p-2 font-bold transition-colors text-xl">▶</button>
               </div>
+              <button 
+                onClick={() => {
+                  const csvData = monthlyReservations.map(r => {
+                    const th = therapists.find(t => t.id === r.therapist_id);
+                    return {
+                      '날짜': r.date,
+                      '시간': r.start_time,
+                      '환자명': r.patient_name,
+                      '전화번호': r.patient_phone,
+                      '담당치료사': th ? th.name : '미정',
+                      '상태': STATUS_MAP[r.status as keyof typeof STATUS_MAP]?.label || r.status,
+                    };
+                  });
+                  downloadCSV(csvData, `월간통계_${calYear}년${calMonth + 1}월`);
+                }}
+                className="btn btn-secondary py-2 px-4 text-sm flex items-center gap-2"
+              >
+                📊 엑셀 다운로드
+              </button>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {monthlyTherapistStats.map(({ therapist: t, count, newCount, existCount }) => (
-                <div key={t.id} className="card text-center py-4">
+                <div 
+                  key={t.id} 
+                  onClick={() => setSelectedTherapistId(selectedTherapistId === t.id ? null : t.id)}
+                  className={`card text-center py-4 cursor-pointer transition-all ${selectedTherapistId === t.id ? 'ring-2 ring-sky-500 bg-sky-50/50' : 'hover:bg-slate-50'}`}
+                >
                   <div className="w-10 h-10 mx-auto rounded-xl flex items-center justify-center text-white font-bold mb-2 shadow-sm" style={{ backgroundColor: t.color }}>
                     {t.name[0]}
                   </div>
@@ -925,6 +948,56 @@ export default function AdminPage() {
                 </ResponsiveContainer>
               </div>
             </div>
+            
+            {selectedTherapistId && (
+              <div className="card animate-fade-in-up mt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-slate-700">
+                    <span style={{ color: therapists.find(t => t.id === selectedTherapistId)?.color }} className="mr-1">
+                      {therapists.find(t => t.id === selectedTherapistId)?.name}
+                    </span> 
+                    치료사 예약 환자 리스트
+                  </h3>
+                  <button onClick={() => setSelectedTherapistId(null)} className="text-slate-400 hover:text-slate-600 text-sm font-semibold">닫기</button>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-slate-400 text-xs border-b border-slate-100">
+                        <th className="pb-2 pl-2">날짜/시간</th>
+                        <th className="pb-2">환자명</th>
+                        <th className="pb-2">연락처</th>
+                        <th className="pb-2">상태</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {monthlyReservations
+                        .filter(r => r.therapist_id === selectedTherapistId && r.status === 'paid')
+                        .sort((a, b) => (a.date + a.start_time).localeCompare(b.date + b.start_time))
+                        .map(r => (
+                          <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="py-2 pl-2 text-slate-600">{formatDate(r.date)} {formatTime(r.start_time)}</td>
+                            <td className="py-2 font-medium text-slate-700">{r.patient_name}</td>
+                            <td className="py-2 text-slate-500">{r.patient_phone}</td>
+                            <td className="py-2">
+                              <span className={`status-badge ${STATUS_MAP[r.status as keyof typeof STATUS_MAP]?.color || 'bg-slate-100 text-slate-600'}`}>
+                                {STATUS_MAP[r.status as keyof typeof STATUS_MAP]?.label || r.status}
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      {monthlyReservations.filter(r => r.therapist_id === selectedTherapistId && r.status === 'paid').length === 0 && (
+                        <tr>
+                          <td colSpan={4} className="py-6 text-center text-slate-400 text-sm">
+                            이번 달 완료된 예약이 없습니다.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
