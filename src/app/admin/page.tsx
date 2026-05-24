@@ -909,7 +909,7 @@ export default function AdminPage() {
                   });
                   downloadCSV(csvData, `월간통계_${calYear}년${calMonth + 1}월`);
                 }}
-                className="btn btn-secondary py-2 px-4 text-sm flex items-center gap-2"
+                className="btn btn-secondary !w-auto py-2 px-4 text-sm flex items-center gap-2"
               >
                 📊 엑셀 다운로드
               </button>
