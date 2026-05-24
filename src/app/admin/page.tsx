@@ -47,6 +47,8 @@ export default function AdminPage() {
 
   // Patients & Settlement Tab States
   const [patientSearch, setPatientSearch] = useState('');
+  const [patientStatusFilter, setPatientStatusFilter] = useState<'all' | 'done' | 'paid'>('all');
+  const [viewingHistoryFor, setViewingHistoryFor] = useState<{name: string, dates: string[]} | null>(null);
   const [pinChangePhone, setPinChangePhone] = useState<string | null>(null);
   const [newPin, setNewPin] = useState('');
   const [pinSaving, setPinSaving] = useState(false);
@@ -299,10 +301,13 @@ export default function AdminPage() {
       paidCount,
       cancelCount,
       latestDate: latest.date,
+      latestStatus: latest.status,
+      allDates: Array.from(new Set(resList.filter(r => r.status === 'paid' || r.status === 'done').map(r => r.date))).sort((a, b) => b.localeCompare(a)),
       mainTherapist: mainTherapist ? mainTherapist.name : '없음',
       isNew: paidCount <= 1
     };
   }).filter(p => !patientSearch || p.name.includes(patientSearch) || p.phone.includes(patientSearch))
+    .filter(p => patientStatusFilter === 'all' || p.latestStatus === patientStatusFilter)
     .sort((a, b) => b.latestDate.localeCompare(a.latestDate));
 
   // --- Settlement Data ---
@@ -1051,8 +1056,22 @@ export default function AdminPage() {
                       <th className="p-4 font-semibold">환자명 (전화번호)</th>
                       <th className="p-4 font-semibold text-center">방문 현황</th>
                       <th className="p-4 font-semibold text-center">초진/재진</th>
+                      <th className="p-4 font-semibold text-center">
+                        <div className="flex items-center justify-center gap-2">
+                          현재 상태
+                          <select
+                            value={patientStatusFilter}
+                            onChange={(e) => setPatientStatusFilter(e.target.value as any)}
+                            className="text-xs border border-slate-200 rounded p-1 text-slate-600 bg-white"
+                          >
+                            <option value="all">전체</option>
+                            <option value="done">수납대기</option>
+                            <option value="paid">수납완료</option>
+                          </select>
+                        </div>
+                      </th>
                       <th className="p-4 font-semibold text-center">주 담당</th>
-                      <th className="p-4 font-semibold text-center">최근 방문일</th>
+                      <th className="p-4 font-semibold text-center">방문일</th>
                       <th className="p-4 font-semibold text-center">관리</th>
                     </tr>
                   </thead>
@@ -1075,11 +1094,18 @@ export default function AdminPage() {
                             : <span className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg text-xs font-semibold">재진</span>
                           }
                         </td>
+                        <td className="p-4 text-center">
+                          {p.latestStatus === 'done' ? <span className="bg-blue-100 text-blue-600 px-2 py-1 rounded-lg text-xs font-semibold">수납대기</span>
+                           : p.latestStatus === 'paid' ? <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg text-xs font-semibold">수납완료</span>
+                           : <span className="bg-slate-50 text-slate-400 px-2 py-1 rounded-lg text-xs font-semibold">{STATUS_MAP[p.latestStatus as keyof typeof STATUS_MAP]?.label || p.latestStatus}</span>}
+                        </td>
                         <td className="p-4 text-center text-slate-600 font-medium">
                           {p.mainTherapist}
                         </td>
                         <td className="p-4 text-center text-slate-500 text-xs">
-                          {formatDate(p.latestDate)}
+                          <button onClick={() => setViewingHistoryFor({name: p.name, dates: p.allDates})} className="text-sky-600 hover:text-sky-800 font-bold underline underline-offset-2 transition-colors">
+                            {formatDate(p.latestDate)}
+                          </button>
                         </td>
                         <td className="p-4 text-center">
                           <button
@@ -1096,7 +1122,7 @@ export default function AdminPage() {
                     ))}
                     {patientsList.length === 0 && (
                       <tr>
-                        <td colSpan={6} className="p-8 text-center text-slate-400">
+                        <td colSpan={7} className="p-8 text-center text-slate-400">
                           검색 결과가 없습니다.
                         </td>
                       </tr>
@@ -1129,6 +1155,31 @@ export default function AdminPage() {
                     </button>
                     <button onClick={() => setPinChangePhone(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* 방문 날짜 팝업 */}
+            {viewingHistoryFor && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+                <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 animate-fade-in-up">
+                  <div className="flex justify-between items-center mb-2">
+                    <h3 className="font-bold text-slate-800 text-lg">{viewingHistoryFor.name}님의 방문 기록</h3>
+                    <button onClick={() => setViewingHistoryFor(null)} className="text-slate-400 hover:text-slate-600">✕</button>
+                  </div>
+                  <div className="max-h-60 overflow-y-auto space-y-2">
+                    {viewingHistoryFor.dates.length > 0 ? (
+                      viewingHistoryFor.dates.map((date, i) => (
+                        <div key={date} className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center text-sm font-semibold text-slate-700">
+                          <span>{i + 1}회차 방문</span>
+                          <span className="text-sky-600">{formatDate(date)}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-slate-400 text-sm py-4">방문 기록이 없습니다.</div>
+                    )}
+                  </div>
+                  <button onClick={() => setViewingHistoryFor(null)} className="btn-secondary w-full py-2 text-sm mt-4">닫기</button>
                 </div>
               </div>
             )}
