@@ -1062,9 +1062,9 @@ export default function AdminPage() {
                           <div className="text-xs text-slate-500">{p.phone}</div>
                         </td>
                         <td className="p-4 text-center">
-                          <div className="text-xs">총 <strong className="text-sky-600">{p.totalCount}</strong>건</div>
+                          <div className="text-xs">방문 <strong className="text-sky-600">{p.paidCount}</strong>건</div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
-                            (수납 {p.paidCount} / 취소 {p.cancelCount})
+                            (총 예약 {p.totalCount} / 취소 {p.cancelCount})
                           </div>
                         </td>
                         <td className="p-4 text-center">
