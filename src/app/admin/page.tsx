@@ -633,9 +633,22 @@ export default function AdminPage() {
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3 bg-slate-50 px-4 py-1.5 rounded-2xl border border-slate-100">
                   <button onClick={handleListMonthPrev} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">◀</button>
-                  <h2 className="font-extrabold text-slate-700 min-w-[90px] text-center text-sm">
-                    {listMonth.split('-')[0]}년 {listMonth.split('-')[1]}월
-                  </h2>
+                  <div className="relative flex items-center justify-center">
+                    <h2 className="font-extrabold text-slate-700 min-w-[90px] text-center text-sm cursor-pointer hover:text-sky-600 transition-colors">
+                      {listMonth.split('-')[0]}년 {listMonth.split('-')[1]}월
+                    </h2>
+                    <input
+                      type="month"
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      value={listMonth}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setListMonth(e.target.value);
+                          setFilterDateMode('month');
+                        }
+                      }}
+                    />
+                  </div>
                   <button onClick={handleListMonthNext} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">▶</button>
                 </div>
                 <div className="flex gap-2">
@@ -1155,9 +1168,21 @@ export default function AdminPage() {
               </div>
               <div className="flex items-center gap-4 bg-white shadow-sm px-5 py-2 rounded-2xl border border-slate-100">
                 <button onClick={handleSettlementMonthPrev} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">◀</button>
-                <h2 className="font-extrabold text-xl text-slate-700 min-w-[110px] text-center">
-                  {settlementMonth.split('-')[0]}년 {settlementMonth.split('-')[1]}월
-                </h2>
+                <div className="relative flex items-center justify-center">
+                  <h2 className="font-extrabold text-xl text-slate-700 min-w-[110px] text-center cursor-pointer hover:text-sky-600 transition-colors">
+                    {settlementMonth.split('-')[0]}년 {settlementMonth.split('-')[1]}월
+                  </h2>
+                  <input
+                    type="month"
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    value={settlementMonth}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setSettlementMonth(e.target.value);
+                      }
+                    }}
+                  />
+                </div>
                 <button onClick={handleSettlementMonthNext} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">▶</button>
               </div>
             </div>
