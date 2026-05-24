@@ -47,10 +47,14 @@ export default function AdminPage() {
 
   // Patients & Settlement Tab States
   const [patientSearch, setPatientSearch] = useState('');
-  const [patientStatusFilter, setPatientStatusFilter] = useState<string>('all');
+  const [patientStatusFilter, setPatientStatusFilter] = useState<'all' | 'pending' | 'approved' | 'done' | 'paid'>('all');
   const [patientTypeFilter, setPatientTypeFilter] = useState<'all' | 'new' | 'existing'>('all');
   const [patientTherapistFilter, setPatientTherapistFilter] = useState<string>('all');
-  const [viewingHistoryFor, setViewingHistoryFor] = useState<{name: string, dates: string[]} | null>(null);
+  const [viewingHistoryFor, setViewingHistoryFor] = useState<{name: string, phone: string, visits: Reservation[]} | null>(null);
+  const [historyMonth, setHistoryMonth] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [pinChangePhone, setPinChangePhone] = useState<string | null>(null);
   const [newPin, setNewPin] = useState('');
   const [pinSaving, setPinSaving] = useState(false);
@@ -97,6 +101,12 @@ export default function AdminPage() {
     }[logFilter];
     
     if (!confirm(`정말로 [${label}] 기록을 모두 삭제하시겠습니까?\n(실제 데이터베이스에서 영구 삭제되며 복구할 수 없습니다)`)) return;
+
+    const pw = prompt('관리자 비밀번호를 입력해주세요.');
+    if (pw !== 'wkfqhs2022!') {
+      alert('비밀번호가 일치하지 않습니다.');
+      return;
+    }
     
     const success = await deleteAuditLogs(actionType);
     if (success) {
@@ -325,7 +335,7 @@ export default function AdminPage() {
       cancelCount,
       latestDate: latest.date,
       latestStatus: latest.status,
-      allDates: Array.from(new Set(resList.filter(r => r.status === 'paid' || r.status === 'done').map(r => r.date))).sort((a, b) => b.localeCompare(a)),
+      allVisits: resList.filter(r => r.status === 'paid' || r.status === 'done').sort((a, b) => new Date(b.date + ' ' + b.start_time).getTime() - new Date(a.date + ' ' + a.start_time).getTime()),
       mainTherapist: mainTherapist ? mainTherapist.name : '없음',
       isNew: paidCount <= 1
     };
@@ -667,9 +677,10 @@ export default function AdminPage() {
                           value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
                     <option value="">전체 상태</option>
                     <option value="pending">승인 대기</option>
-                    <option value="approved">확정</option>
-                    <option value="rejected">거절</option>
-                    <option value="done">완료</option>
+                    <option value="approved">예약 확정</option>
+                    <option value="rejected">거절됨</option>
+                    <option value="done">수납 대기</option>
+                    <option value="paid">수납/치료 완료</option>
                   </select>
                 </div>
               </div>
@@ -1119,8 +1130,8 @@ export default function AdminPage() {
                             <option value="all">전체</option>
                             <option value="pending">승인 대기</option>
                             <option value="approved">예약 확정</option>
-                            <option value="done">수납대기</option>
-                            <option value="paid">수납완료</option>
+                            <option value="done">수납 대기</option>
+                            <option value="paid">수납/치료 완료</option>
                             <option value="rejected">거절됨</option>
                           </select>
                         </div>
@@ -1173,8 +1184,11 @@ export default function AdminPage() {
                           {p.mainTherapist}
                         </td>
                         <td className="p-4 text-center text-slate-500 text-xs">
-                          <button onClick={() => setViewingHistoryFor({name: p.name, dates: p.allDates})} className="text-sky-600 hover:text-sky-800 font-bold underline underline-offset-2 transition-colors">
-                            {formatDate(p.latestDate)}
+                          <button onClick={() => {
+                            setViewingHistoryFor(p);
+                            setHistoryMonth(p.latestDate.slice(0, 7) || toDateStr(new Date()).slice(0, 7));
+                          }} className="text-sky-600 hover:text-sky-800 font-bold underline underline-offset-2 transition-colors">
+                            {p.paidCount}회 방문
                           </button>
                         </td>
                         <td className="p-4 text-center">
@@ -1237,17 +1251,40 @@ export default function AdminPage() {
                     <h3 className="font-bold text-slate-800 text-lg">{viewingHistoryFor.name}님의 방문 기록</h3>
                     <button onClick={() => setViewingHistoryFor(null)} className="text-slate-400 hover:text-slate-600">✕</button>
                   </div>
-                  <div className="max-h-60 overflow-y-auto space-y-2">
-                    {viewingHistoryFor.dates.length > 0 ? (
-                      viewingHistoryFor.dates.map((date, i) => (
-                        <div key={date} className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center text-sm font-semibold text-slate-700">
-                          <span>{i + 1}회차 방문</span>
-                          <span className="text-sky-600">{formatDate(date)}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="text-center text-slate-400 text-sm py-4">방문 기록이 없습니다.</div>
-                    )}
+
+                  <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl mb-2">
+                    <button onClick={() => {
+                      const [y, m] = historyMonth.split('-').map(Number);
+                      const d = new Date(y, m - 2, 1);
+                      setHistoryMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+                    }} className="text-slate-400 hover:text-sky-500 font-bold px-3 py-1">◀</button>
+                    <span className="font-extrabold text-slate-700">
+                      {historyMonth.split('-')[0]}년 {historyMonth.split('-')[1]}월
+                    </span>
+                    <button onClick={() => {
+                      const [y, m] = historyMonth.split('-').map(Number);
+                      const d = new Date(y, m, 1);
+                      setHistoryMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+                    }} className="text-slate-400 hover:text-sky-500 font-bold px-3 py-1">▶</button>
+                  </div>
+
+                  <div className="max-h-60 overflow-y-auto space-y-2 custom-scrollbar pr-2">
+                    {(() => {
+                      const filteredVisits = viewingHistoryFor.allVisits.filter((v: any) => v.date.startsWith(historyMonth));
+                      if (filteredVisits.length === 0) {
+                        return <div className="text-center text-slate-400 text-sm py-4">이 달의 방문 기록이 없습니다.</div>;
+                      }
+                      return filteredVisits.map((visit: any) => {
+                        // Calculate overall visit number (since it's sorted newest first)
+                        const overallIndex = viewingHistoryFor.allVisits.length - viewingHistoryFor.allVisits.findIndex((v: any) => v.id === visit.id);
+                        return (
+                          <div key={visit.id} className="bg-slate-50 border border-slate-100 rounded-xl p-3 flex justify-between items-center text-sm font-semibold text-slate-700">
+                            <span>{overallIndex}회차 방문</span>
+                            <span className="text-sky-600">{formatDate(visit.date)} {visit.start_time.slice(0, 5)}</span>
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                   <button onClick={() => setViewingHistoryFor(null)} className="btn-secondary w-full py-2 text-sm mt-4">닫기</button>
                 </div>
