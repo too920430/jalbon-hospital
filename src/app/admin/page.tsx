@@ -363,7 +363,8 @@ export default function AdminPage() {
 
   const yearlyReservations = reservations.filter(r => r.date.startsWith(String(currentYear)));
   const yearlyTherapistStats = therapists.map((t) => {
-    const tRes = yearlyReservations.filter(r => r.therapist_id === t.id && r.status === 'paid');
+    // 월간 통계와 동일한 기준(rejected 제외)으로 통일
+    const tRes = yearlyReservations.filter(r => r.therapist_id === t.id && r.status !== 'rejected');
     const months = Array.from({length: 12}).map((_, i) => {
       const mStr = `${currentYear}-${String(i + 1).padStart(2, '0')}`;
       return tRes.filter(r => r.date.startsWith(mStr)).length;
@@ -1996,12 +1997,7 @@ export default function AdminPage() {
               </div>
               <div className="md:col-span-1">
                 <label className="text-xs font-semibold text-slate-600 block mb-1">사유</label>
-                <input type="text" placeholder="사유 (선택)" className="input-field" value={leaveReason} onChange={e => setLeaveReason(e.target.value)} />
-              </div>
-            </div>
-            <button
-              className="btn-primary w-full"
-              onClick={async () => {
+                  onClick={async () => {
                 if (!leaveTherapistId) return alert('치료사를 선택하세요.');
                 
                 let startT = '00:00';
@@ -2012,6 +2008,21 @@ export default function AdminPage() {
                 } else if (leaveType === '오후반차') {
                   startT = '12:30';
                   endT = '23:59';
+                }
+
+                const overlappingRes = reservations.filter(r => {
+                  if (r.therapist_id !== leaveTherapistId) return false;
+                  if (r.date !== leaveDate) return false;
+                  if (r.status === 'rejected' || r.status === 'no_show') return false;
+                  const rStart = r.start_time.slice(0, 5);
+                  return rStart >= startT && rStart < endT;
+                });
+
+                if (overlappingRes.length > 0) {
+                  const patientListStr = overlappingRes.map(r => `${r.patient_name}(${r.start_time.slice(0,5)})`).join(', ');
+                  if (!confirm(`해당 시간에 예약된 환자가 있습니다: ${patientListStr}\n그래도 휴무를 등록하시겠습니까?`)) {
+                    return;
+                  }
                 }
 
                 setLeaveLoading('create');
@@ -2047,10 +2058,10 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody className="text-sm divide-y divide-slate-50">
-                  {leaves.length === 0 && (
+                  {lcLeaves.length === 0 && (
                     <tr><td colSpan={5} className="p-8 text-center text-slate-400">등록된 휴무가 없습니다.</td></tr>
                   )}
-                  {[...leaves].sort((a, b) => b.date.localeCompare(a.date)).map(leave => {
+                  {[...lcLeaves].sort((a, b) => b.date.localeCompare(a.date)).map(leave => {
                     const th = therapists.find(t => t.id === leave.therapist_id);
                     return (
                       <tr key={leave.id} className="hover:bg-slate-50/50 transition-colors">

@@ -322,7 +322,6 @@ export default function TherapistDashboard() {
                       className="btn-primary w-full mt-2 py-3"
                       onClick={async () => {
                         if (!therapist) return;
-                        setActionLoading('leave');
                         
                         let startT = '00:00';
                         let endT = '23:59';
@@ -334,6 +333,21 @@ export default function TherapistDashboard() {
                           endT = '23:59';
                         }
                         
+                        const overlappingRes = reservations.filter(r => {
+                          if (r.date !== leaveDate) return false;
+                          if (r.status === 'rejected' || r.status === 'no_show') return false;
+                          const rStart = r.start_time.slice(0, 5);
+                          return rStart >= startT && rStart < endT;
+                        });
+
+                        if (overlappingRes.length > 0) {
+                          const patientListStr = overlappingRes.map(r => `${r.patient_name}(${r.start_time.slice(0,5)})`).join(', ');
+                          if (!confirm(`해당 시간에 예약된 환자가 있습니다: ${patientListStr}\n그래도 휴무를 등록하시겠습니까?`)) {
+                            return;
+                          }
+                        }
+
+                        setActionLoading('leave');
                         const res = await insertTherapistLeave(therapist.id, leaveDate, startT, endT, `[${leaveType}] ${leaveReason}`.trim());
                         if (res.success) {
                           setLeaveReason('');
