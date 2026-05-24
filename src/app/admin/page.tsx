@@ -777,7 +777,8 @@ export default function AdminPage() {
                   <table className="w-full text-sm min-w-[560px]">
                     <thead>
                       <tr className="text-left text-slate-400 text-xs uppercase tracking-wider">
-                        <th className="px-6 py-2">날짜 · 시간</th>
+                        <th className="px-6 py-2 w-16 text-center">No.</th>
+                        <th className="px-2 py-2">날짜 · 시간</th>
                         <th className="px-4 py-2">환자</th>
                         <th className="px-4 py-2">치료사</th>
                         <th className="px-4 py-2">시간</th>
@@ -788,12 +789,15 @@ export default function AdminPage() {
                     <tbody className="divide-y divide-slate-50">
                       {filtered
                         .sort((a, b) => (a.date + a.start_time).localeCompare(b.date + b.start_time))
-                        .map((res) => {
+                        .map((res, idx) => {
                           const statusInfo = STATUS_MAP[res.status];
                           const th = therapists.find((t) => t.id === res.therapist_id);
                           return (
                             <tr key={res.id} className="hover:bg-slate-50 transition-colors">
-                              <td className="px-6 py-3">
+                              <td className="px-6 py-3 text-center font-bold text-slate-400">
+                                {idx + 1}
+                              </td>
+                              <td className="px-2 py-3">
                                 <p className="font-semibold text-slate-700">{formatDate(res.date)}</p>
                                 <p className="text-slate-400 text-xs">{formatTime(res.start_time)}</p>
                               </td>
