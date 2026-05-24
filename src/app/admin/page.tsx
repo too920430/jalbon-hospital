@@ -279,8 +279,8 @@ export default function AdminPage() {
   const todayAll = reservations.filter((r) => r.date === today);
   const allDone = reservations.filter((r) => r.status === 'done').length;
 
-  const currentMonthString = today.slice(0, 7);
-  const thisMonthReservations = reservations.filter((r) => r.date.startsWith(currentMonthString));
+  const selectedMonthString = filterDateMode === 'today' ? listDate.slice(0, 7) : listMonth;
+  const thisMonthReservations = reservations.filter((r) => r.date.startsWith(selectedMonthString));
 
   const therapistStats = therapists.map((t) => ({
     therapist: t,
@@ -712,7 +712,7 @@ export default function AdminPage() {
 
             {/* Therapist stats (This Month) */}
             <div className="card">
-              <h2 className="font-bold text-slate-700 mb-3">치료사별 현황 (이번 달)</h2>
+              <h2 className="font-bold text-slate-700 mb-3">치료사별 현황 ({parseInt((filterDateMode === 'today' ? listDate : listMonth).split('-')[1])}월)</h2>
               <div className="mb-6 h-[250px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -746,7 +746,7 @@ export default function AdminPage() {
                     </div>
                     <div>
                       <p className="font-semibold text-slate-700 text-sm">{t.name}</p>
-                      <p className="text-xs text-slate-500">이번 달 <strong className="text-sky-600">{thisMonth}</strong>건 · 전체 {total}건</p>
+                      <p className="text-xs text-slate-500">{parseInt((filterDateMode === 'today' ? listDate : listMonth).split('-')[1])}월 <strong className="text-sky-600">{thisMonth}</strong>건 · 전체 {total}건</p>
                     </div>
                   </div>
                 ))}
@@ -1608,7 +1608,7 @@ export default function AdminPage() {
                   setLogDeleteTarget({ type: 'sms', label: '알리고 알림내역' });
                   setLogDeletePassword('');
                   setShowLogDeletePassword(false);
-                }} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-3 py-1.5 rounded-lg transition-colors border border-red-200 h-[36px]">
+                }} className="text-xs bg-red-50 text-red-600 hover:bg-red-100 font-bold px-3 py-1.5 rounded-lg transition-colors border border-red-200 h-[36px] whitespace-nowrap">
                   🗑 알림 내역 삭제
                 </button>
               </div>
