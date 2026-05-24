@@ -721,6 +721,7 @@ export default function AdminPage() {
                                       onClick={async () => {
                                         if (confirm('이 예약의 수납을 확인하셨습니까? (통계에 반영됩니다)')) {
                                           await updateReservationStatus(res.id, 'paid');
+                                          await new Promise(r => setTimeout(r, 400));
                                           await loadData();
                                         }
                                       }}

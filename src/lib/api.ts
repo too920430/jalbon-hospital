@@ -163,7 +163,7 @@ export async function getPatientReservations(
     if (allMatchingNamePhone.length === 0) return { data: [], error: 'not_found' };
     const matchingPin = allMatchingNamePhone.filter((r) => r.pin === pin);
     if (matchingPin.length === 0) return { data: [], error: 'wrong_pin' };
-    return { data: matchingPin };
+    return { data: matchingPin.filter(r => r.status !== 'paid') };
   }
   
   // 먼저 이름과 전화번호로 모두 찾음
@@ -181,7 +181,8 @@ export async function getPatientReservations(
   const matchingPin = data.filter((r: Reservation) => r.pin === pin);
   if (matchingPin.length === 0) return { data: [], error: 'wrong_pin' };
   
-  return { data: matchingPin as Reservation[] };
+  // paid(수납완료) 제외하고 반환
+  return { data: (matchingPin as Reservation[]).filter(r => r.status !== 'paid') };
 }
 
 // ─── 슬롯 가용성 조회 (해당 날짜/치료사의 예약 목록 반환) ───
