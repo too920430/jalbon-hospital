@@ -62,6 +62,9 @@ export default function AdminPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [logFilter, setLogFilter] = useState<'all' | 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_CANCELED'>('all');
 
+  const listMonthRef = React.useRef<HTMLInputElement>(null);
+  const settlementMonthRef = React.useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     const role = sessionStorage.getItem('jalbon_role');
     if (role !== 'admin') {
@@ -633,13 +636,21 @@ export default function AdminPage() {
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3 bg-slate-50 px-4 py-1.5 rounded-2xl border border-slate-100">
                   <button onClick={handleListMonthPrev} className="text-slate-400 hover:text-sky-500 font-bold transition-colors text-lg">◀</button>
-                  <div className="relative flex items-center justify-center">
-                    <h2 className="font-extrabold text-slate-700 min-w-[90px] text-center text-sm cursor-pointer hover:text-sky-600 transition-colors">
+                  <div 
+                    className="relative flex items-center justify-center cursor-pointer hover:text-sky-600 transition-colors"
+                    onClick={() => {
+                      if (listMonthRef.current) {
+                        try { listMonthRef.current.showPicker(); } catch (e) { listMonthRef.current.focus(); }
+                      }
+                    }}
+                  >
+                    <h2 className="font-extrabold text-slate-700 min-w-[90px] text-center text-sm">
                       {listMonth.split('-')[0]}년 {listMonth.split('-')[1]}월
                     </h2>
                     <input
+                      ref={listMonthRef}
                       type="month"
-                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 opacity-0 pointer-events-none"
                       value={listMonth}
                       onChange={(e) => {
                         if (e.target.value) {
@@ -1168,13 +1179,21 @@ export default function AdminPage() {
               </div>
               <div className="flex items-center gap-4 bg-white shadow-sm px-5 py-2 rounded-2xl border border-slate-100">
                 <button onClick={handleSettlementMonthPrev} className="text-slate-400 hover:text-sky-500 p-1 font-bold transition-colors text-xl">◀</button>
-                <div className="relative flex items-center justify-center">
-                  <h2 className="font-extrabold text-xl text-slate-700 min-w-[110px] text-center cursor-pointer hover:text-sky-600 transition-colors">
+                <div 
+                  className="relative flex items-center justify-center cursor-pointer hover:text-sky-600 transition-colors"
+                  onClick={() => {
+                    if (settlementMonthRef.current) {
+                      try { settlementMonthRef.current.showPicker(); } catch (e) { settlementMonthRef.current.focus(); }
+                    }
+                  }}
+                >
+                  <h2 className="font-extrabold text-xl text-slate-700 min-w-[110px] text-center">
                     {settlementMonth.split('-')[0]}년 {settlementMonth.split('-')[1]}월
                   </h2>
                   <input
+                    ref={settlementMonthRef}
                     type="month"
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-0 h-0 opacity-0 pointer-events-none"
                     value={settlementMonth}
                     onChange={(e) => {
                       if (e.target.value) {
