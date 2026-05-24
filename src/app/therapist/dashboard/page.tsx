@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
-import { getTherapistReservations, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds } from '@/lib/api';
+import { getTherapistReservations, updateReservationStatus, updateReservationDateTime, getSlotAvailability, getMaxBeds, deleteReservation } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, formatTherapistName, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
@@ -95,6 +95,14 @@ export default function TherapistDashboard() {
     await updateReservationDateTime(res.id, editDate, time, editDuration);
     if (therapist) await loadReservations(therapist.id);
     setEditingId(null);
+    setActionLoading(null);
+  };
+
+  const handleDelete = async (resId: string) => {
+    if (!confirm('정말로 이 예약을 삭제하시겠습니까? (삭제 후 복구할 수 없습니다)')) return;
+    setActionLoading(resId);
+    await deleteReservation(resId);
+    if (therapist) await loadReservations(therapist.id);
     setActionLoading(null);
   };
 
@@ -498,12 +506,21 @@ export default function TherapistDashboard() {
                           </div>
                         </div>
                       ) : (
-                        <button
-                          onClick={() => startEdit(res)}
-                          className="w-full mb-2 py-1.5 rounded-xl text-xs font-semibold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200"
-                        >
-                          📅 날짜/시간 변경
-                        </button>
+                        <div className="space-y-2 mb-3">
+                          <button
+                            onClick={() => startEdit(res)}
+                            className="w-full py-1.5 rounded-xl text-xs font-semibold text-slate-500 bg-slate-50 hover:bg-slate-100 transition-colors border border-slate-200"
+                          >
+                            📅 날짜/시간 변경
+                          </button>
+                          <button
+                            onClick={() => handleDelete(res.id)}
+                            disabled={actionLoading === res.id}
+                            className="w-full py-1.5 rounded-xl text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition-colors border border-red-200"
+                          >
+                            {actionLoading === res.id ? '삭제 중...' : '🗑 예약 삭제'}
+                          </button>
+                        </div>
                       )}
 
                       {/* 승인/거절/완료 버튼 */}
