@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getTherapists, insertAuditLog } from '@/lib/api';
 import { Therapist } from '@/lib/types';
+import { supabase } from '@/lib/supabase';
 import { formatTherapistName } from '@/lib/slots';
 
 export default function TherapistLoginPage() {
@@ -27,36 +28,41 @@ export default function TherapistLoginPage() {
     setLoading(true);
     setError('');
 
-    // 관리자 로그인 처리
-    if (selectedId === 'admin') {
-      if (pin !== 'wkfqhs2022!@#') {
-        setError('비밀번호가 올바르지 않습니다.');
-        setLoading(false);
-        return;
-      }
-      sessionStorage.setItem('jalbon_role', 'admin');
-      sessionStorage.setItem('jalbon_therapist', JSON.stringify({ id: 'admin', name: '관리자', color: '#64748b' }));
-      insertAuditLog('THERAPIST_LOGIN', '관리자', {});
-      router.push('/admin');
-      return;
-    }
+    // 서버 사이드 보안 로그인 (Supabase RPC)
+    const { data: result, error: rpcError } = await supabase.rpc('check_therapist_login', {
+      p_id: selectedId,
+      p_pin: pin
+    });
 
-    // 일반 치료사 로그인 처리
-    const therapist = therapists.find((t) => t.id === selectedId);
-    if (!therapist) { setError('치료사를 선택하세요.'); setLoading(false); return; }
-
-    if (pin !== 'wkfqhs' && pin !== therapist.pin) {
-      setError('비밀번호가 올바르지 않습니다.');
+    if (rpcError || !result) {
+      setError('로그인 서버와 통신 중 오류가 발생했습니다.');
       setLoading(false);
       return;
     }
 
-    sessionStorage.setItem('jalbon_role', 'therapist');
-    sessionStorage.setItem('jalbon_therapist', JSON.stringify(therapist));
-    localStorage.setItem('jalbon_is_therapist_device', 'true');
-    insertAuditLog('THERAPIST_LOGIN', therapist.name, {});
-    router.push('/therapist/dashboard');
-  };
+    const { valid, error: loginError, role, name, color } = result as any;
+
+    if (!valid) {
+      setError(loginError || '비밀번호가 올바르지 않습니다.');
+      setLoading(false);
+      return;
+    }
+
+    // 성공 처리
+    if (role === 'admin') {
+      sessionStorage.setItem('jalbon_role', 'admin');
+      sessionStorage.setItem('jalbon_therapist', JSON.stringify({ id: 'admin', name: name || '관리자', color: color || '#64748b' }));
+      insertAuditLog('THERAPIST_LOGIN', '관리자', {});
+      router.push('/admin');
+    } else {
+      sessionStorage.setItem('jalbon_role', 'therapist');
+      // color 등을 원래 therapists 배열에서 찾아오거나 임의 배정
+      const fullTherapist = therapists.find(t => t.id === selectedId) || { id: selectedId, name };
+      sessionStorage.setItem('jalbon_therapist', JSON.stringify(fullTherapist));
+      localStorage.setItem('jalbon_is_therapist_device', 'true');
+      insertAuditLog('THERAPIST_LOGIN', name, {});
+      router.push('/therapist/dashboard');
+    }
 
   return (
     <div className="min-h-screen bg-[#F0F9FF] flex items-center justify-center px-4">

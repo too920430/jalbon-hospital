@@ -91,23 +91,11 @@ export async function createReservation(params: {
     return { success: true };
   }
 
-  // 신환 여부 및 비밀번호 체크
-  const { data: pastRes, error: fetchError } = await supabase
-    .from('reservations')
-    .select('pin')
-    .eq('patient_phone', params.patientPhone)
-    .order('created_at', { ascending: false })
-    .limit(1);
-
-  if (fetchError) {
-    console.error('Failed to fetch past reservations:', fetchError);
-    return { success: false, error: '이전 예약 내역을 확인하는 중 오류가 발생했습니다: ' + fetchError.message };
-  }
-
-  if (pastRes && pastRes.length > 0) {
-    if (pastRes[0].pin !== params.pin) {
-      return { success: false, error: '이전에 사용하신 예약 비밀번호와 다릅니다. 동일한 번호를 입력해주세요.' };
-    }
+  // 신환 여부 및 비밀번호 체크 (안전한 RPC 호출 활용)
+  const pinCheck = await checkPatientPin(params.patientPhone, params.pin);
+  if (!pinCheck.valid) {
+    // pinCheck.error 에는 블랙리스트 차단, 무차별 대입 차단, 비밀번호 틀림 에러 등이 담겨옵니다.
+    return { success: false, error: pinCheck.error };
   }
 
   const { error } = await supabase.from('reservations').insert({
@@ -129,12 +117,11 @@ export async function createReservation(params: {
 
 // ─── 기존 환자 비밀번호(PIN) 사전 검증 ────────────────────────
 export async function checkPatientPin(phone: string, pin: string): Promise<{ valid: boolean; error?: string }> {
-  const blacklisted = await getBlacklistedPhones();
-  if (blacklisted.includes(phone)) {
-    return { valid: false, error: '현재 온라인 예약을 이용하실 수 없습니다. 병원으로 직접 문의해 주세요.' };
-  }
-
   if (!isSupabaseConfigured) {
+    const blacklisted = await getBlacklistedPhones();
+    if (blacklisted.includes(phone)) {
+      return { valid: false, error: '현재 온라인 예약을 이용하실 수 없습니다. 병원으로 직접 문의해 주세요.' };
+    }
     const reservations = getLocalReservations();
     const pastRes = reservations.filter(r => r.patient_phone === phone);
     if (pastRes.length > 0) {
@@ -146,19 +133,19 @@ export async function checkPatientPin(phone: string, pin: string): Promise<{ val
     return { valid: true };
   }
 
-  const { data: pastRes } = await supabase
-    .from('reservations')
-    .select('pin')
-    .eq('patient_phone', phone)
-    .order('created_at', { ascending: false })
-    .limit(1);
+  // 안전한 서버 사이드 RPC 호출 (무차별 대입 방지 및 블랙리스트 검증 포함)
+  const { data, error } = await supabase.rpc('check_patient_pin_with_rate_limit', {
+    p_phone: phone,
+    p_pin: pin
+  });
 
-  if (pastRes && pastRes.length > 0) {
-    if (pastRes[0].pin !== pin) {
-      return { valid: false, error: '이전에 사용하신 예약 비밀번호와 다릅니다.' };
-    }
+  if (error) {
+    console.error('Failed to check pin via RPC:', error);
+    return { valid: false, error: '서버 통신 오류가 발생했습니다.' };
   }
-  return { valid: true };
+
+  // data는 JSON 객체 반환 { "valid": true/false, "error": "메시지" }
+  return data as { valid: boolean; error?: string };
 }
 
 // ─── 예약 조회 (환자) ────────────────────────────────
@@ -166,7 +153,7 @@ export async function getPatientReservations(
   name: string,
   phone: string,
   pin: string
-): Promise<{ data: Reservation[]; error?: 'not_found' | 'wrong_pin' }> {
+): Promise<{ data: Reservation[]; error?: 'not_found' | 'wrong_pin' | 'rate_limit' | string }> {
   if (!isSupabaseConfigured) {
     const allMatchingNamePhone = getLocalReservations().filter(
       (r) => r.patient_name === name && r.patient_phone === phone
@@ -177,23 +164,28 @@ export async function getPatientReservations(
     return { data: matchingPin.filter(r => r.status !== 'paid') };
   }
   
-  // 먼저 이름과 전화번호로 모두 찾음
+  // 서버 사이드에서 안전하게 데이터 조회 (Rate Limit 적용)
   const { data, error } = await supabase
-    .from('reservations')
-    .select('*, therapist:therapists(*)')
-    .eq('patient_name', name)
-    .eq('patient_phone', phone)
-    .order('date', { ascending: false })
-    .order('start_time', { ascending: false });
+    .rpc('get_patient_reservations_secure', { p_name: name, p_phone: phone, p_pin: pin })
+    .select('*, therapist:therapists(*)');
     
-  if (error || !data || data.length === 0) return { data: [], error: 'not_found' };
+  if (error) {
+    // 혹시 RPC 내부에 작성한 Rate Limit 오류 메시지가 반환될 수 있다면 캐치 (단, RPC에서 집합반환 시 에러를 던지게 만들지 않았으므로 결과가 없을 것임)
+    console.error('Failed to get patient reservations via RPC:', error);
+    return { data: [], error: 'not_found' };
+  }
+
+  if (!data || data.length === 0) {
+    // PIN이 틀렸거나, Rate Limit에 걸렸거나, 진짜 예약이 없거나 셋 중 하나임
+    // PIN 검증 RPC를 한 번 더 호출해서 정확한 에러 상태 확인
+    const pinCheck = await checkPatientPin(phone, pin);
+    if (!pinCheck.valid) {
+      return { data: [], error: pinCheck.error };
+    }
+    return { data: [], error: 'not_found' };
+  }
   
-  // 비밀번호 일치하는 것만 필터링 (여러 예약 중 하나라도 맞으면 그 PIN으로 된 예약만 반환, 또는 모두 반환할 수 있으나 보통 PIN은 동일함)
-  const matchingPin = data.filter((r: Reservation) => r.pin === pin);
-  if (matchingPin.length === 0) return { data: [], error: 'wrong_pin' };
-  
-  // paid(수납완료) 제외하고 반환
-  return { data: (matchingPin as Reservation[]).filter(r => r.status !== 'paid') };
+  return { data: data as Reservation[] };
 }
 
 // ─── 슬롯 가용성 조회 (해당 날짜/치료사의 예약 목록 반환) ───
