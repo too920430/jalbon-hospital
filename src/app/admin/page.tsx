@@ -746,7 +746,11 @@ export default function AdminPage() {
         </div>
         {!loading && therapists.length > 0 && (
           <div className="border-t border-slate-100 px-4 py-2">
-            <div className="max-w-4xl mx-auto flex gap-4 overflow-x-auto">
+            <div className="max-w-4xl mx-auto flex gap-4 overflow-x-auto items-center">
+              <span className="text-xs font-bold text-slate-500 whitespace-nowrap">
+                📅 {today.split('-')[0]}.{today.split('-')[1]}.{today.split('-')[2]}
+              </span>
+              <span className="text-slate-200 text-xs">|</span>
               {therapists.map(t => {
                 const cnt = reservations.filter(r => r.date === today && r.therapist_id === t.id && r.status !== 'rejected' && r.status !== 'no_show').length;
                 return (
