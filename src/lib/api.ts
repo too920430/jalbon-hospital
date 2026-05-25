@@ -27,11 +27,13 @@ export async function addTherapist(
   pin: string
 ): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) return { success: true };
-  const { error } = await supabase
-    .from('therapists')
-    .insert({ name, color, pin, is_active: true, incentive: 10000 });
+  const { data, error } = await supabase.rpc('add_therapist_admin', {
+    p_name: name,
+    p_color: color,
+    p_pin: pin,
+  });
   if (error) return { success: false, error: error.message };
-  return { success: true };
+  return data as { success: boolean; error?: string };
 }
 
 export async function updateTherapist(
@@ -39,18 +41,22 @@ export async function updateTherapist(
   updates: { name?: string; color?: string; pin?: string; is_active?: boolean }
 ): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) return { success: true };
-  const { error } = await supabase.from('therapists').update(updates).eq('id', id);
+  const { data, error } = await supabase.rpc('update_therapist_admin', {
+    p_id: id,
+    p_name: updates.name ?? null,
+    p_color: updates.color ?? null,
+    p_pin: updates.pin ?? null,
+    p_is_active: updates.is_active ?? null,
+  });
   if (error) return { success: false, error: error.message };
-  return { success: true };
+  return data as { success: boolean; error?: string };
 }
 
 export async function deleteTherapistAndData(id: string): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured) return { success: true };
-  await supabase.from('reservations').delete().eq('therapist_id', id);
-  await supabase.from('therapist_leaves').delete().eq('therapist_id', id);
-  const { error } = await supabase.from('therapists').delete().eq('id', id);
+  const { data, error } = await supabase.rpc('delete_therapist_admin', { p_id: id });
   if (error) return { success: false, error: error.message };
-  return { success: true };
+  return data as { success: boolean; error?: string };
 }
 
 // ─── 치료사 ─────────────────────────────────────────
