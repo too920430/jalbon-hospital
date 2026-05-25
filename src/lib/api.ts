@@ -6,6 +6,53 @@ import { MOCK_THERAPISTS } from './mockData';
 import { isSlotOverlapping } from './slots';
 import { sendAligoSms } from './aligo';
 
+// ─── 치료사 전체 관리 (관리자) ─────────────────────────
+export async function getAllTherapists(): Promise<Therapist[]> {
+  if (!isSupabaseConfigured) return MOCK_THERAPISTS;
+  const { data, error } = await supabase
+    .from('therapists')
+    .select('*')
+    .order('name');
+  if (error) return MOCK_THERAPISTS;
+  return (data as Therapist[]).sort((a, b) => {
+    if (a.name.includes('센터장')) return -1;
+    if (b.name.includes('센터장')) return 1;
+    return a.name.localeCompare(b.name, 'ko');
+  });
+}
+
+export async function addTherapist(
+  name: string,
+  color: string,
+  pin: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured) return { success: true };
+  const { error } = await supabase
+    .from('therapists')
+    .insert({ name, color, pin, is_active: true, incentive: 10000 });
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function updateTherapist(
+  id: string,
+  updates: { name?: string; color?: string; pin?: string; is_active?: boolean }
+): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured) return { success: true };
+  const { error } = await supabase.from('therapists').update(updates).eq('id', id);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
+export async function deleteTherapistAndData(id: string): Promise<{ success: boolean; error?: string }> {
+  if (!isSupabaseConfigured) return { success: true };
+  await supabase.from('reservations').delete().eq('therapist_id', id);
+  await supabase.from('therapist_leaves').delete().eq('therapist_id', id);
+  const { error } = await supabase.from('therapists').delete().eq('id', id);
+  if (error) return { success: false, error: error.message };
+  return { success: true };
+}
+
 // ─── 치료사 ─────────────────────────────────────────
 export async function getTherapists(): Promise<Therapist[]> {
   if (!isSupabaseConfigured) return MOCK_THERAPISTS;

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist, AuditLog, SmsLog } from '@/lib/types';
-import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs, deleteSmsLogs, getTherapistLeaves, insertTherapistLeave, updateTherapistLeave, deleteTherapistLeave, getBlacklistedPhones, toggleBlacklist } from '@/lib/api';
+import { getAllReservations, getTherapists, getAllTherapists, addTherapist, updateTherapist, deleteTherapistAndData, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs, deleteSmsLogs, getTherapistLeaves, insertTherapistLeave, updateTherapistLeave, deleteTherapistLeave, getBlacklistedPhones, toggleBlacklist } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -43,7 +43,7 @@ export default function AdminPage() {
   const [editSlotAvailability, setEditSlotAvailability] = useState<{ id: string; start_time: string; duration: number }[]>([]);
 
   // Tabs & Dates
-  const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly' | 'logs' | 'patients' | 'settlement' | 'sms' | 'leaves'>('overview');
+  const [adminTab, setAdminTab] = useState<'overview' | 'monthly' | 'yearly' | 'logs' | 'patients' | 'settlement' | 'sms' | 'leaves' | 'therapists'>('overview');
 
   const downloadCSV = (data: any[], filename: string) => {
     if (data.length === 0) {
@@ -95,6 +95,19 @@ export default function AdminPage() {
   const [logDeleteTarget, setLogDeleteTarget] = useState<{actionType?: string, type?: string, label: string} | null>(null);
   const [logDeletePassword, setLogDeletePassword] = useState('');
   const [showLogDeletePassword, setShowLogDeletePassword] = useState(false);
+
+  // Therapist Management State
+  const [allTherapists, setAllTherapists] = useState<Therapist[]>([]);
+  const [therapistSearch, setTherapistSearch] = useState('');
+  const [therapistStatusFilter, setTherapistStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [therapistFormModal, setTherapistFormModal] = useState<{mode: 'add'} | {mode: 'edit'; therapist: Therapist} | null>(null);
+  const [therapistFormName, setTherapistFormName] = useState('');
+  const [therapistFormColor, setTherapistFormColor] = useState('#3b82f6');
+  const [therapistFormPin, setTherapistFormPin] = useState('');
+  const [therapistFormSaving, setTherapistFormSaving] = useState(false);
+  const [therapistDeleteTarget, setTherapistDeleteTarget] = useState<Therapist | null>(null);
+  const [therapistDeletePassword, setTherapistDeletePassword] = useState('');
+  const [showTherapistDeletePassword, setShowTherapistDeletePassword] = useState(false);
   const [settlementMonth, setSettlementMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -140,9 +153,10 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [res, ths, logs, sms, lvs, bl] = await Promise.all([getAllReservations(), getTherapists(), getAuditLogs(), getSmsLogs(), getTherapistLeaves(), getBlacklistedPhones()]);
+    const [res, ths, allThs, logs, sms, lvs, bl] = await Promise.all([getAllReservations(), getTherapists(), getAllTherapists(), getAuditLogs(), getSmsLogs(), getTherapistLeaves(), getBlacklistedPhones()]);
     setReservations(res);
     setTherapists(ths);
+    setAllTherapists(allThs);
     setAuditLogs(logs);
     setSmsLogs(sms);
     setLeaves(lvs);
@@ -196,6 +210,73 @@ export default function AdminPage() {
     }
   };
 
+
+  // ─── 치료사 관리 핸들러 ───────────────────────────────
+  const handleTherapistFormOpen = (mode: 'add' | 'edit', therapist?: Therapist) => {
+    if (mode === 'add') {
+      setTherapistFormName('');
+      setTherapistFormColor('#3b82f6');
+      setTherapistFormPin('');
+      setTherapistFormModal({ mode: 'add' });
+    } else if (therapist) {
+      setTherapistFormName(therapist.name);
+      setTherapistFormColor(therapist.color || '#3b82f6');
+      setTherapistFormPin('');
+      setTherapistFormModal({ mode: 'edit', therapist });
+    }
+  };
+
+  const handleTherapistFormSave = async () => {
+    if (!therapistFormModal || !therapistFormName.trim()) return;
+    if (therapistFormModal.mode === 'add' && therapistFormPin.length !== 4) {
+      alert('4자리 PIN을 입력해주세요.');
+      return;
+    }
+    setTherapistFormSaving(true);
+    if (therapistFormModal.mode === 'add') {
+      const res = await addTherapist(therapistFormName.trim(), therapistFormColor, therapistFormPin);
+      if (!res.success) { alert('추가 실패: ' + res.error); setTherapistFormSaving(false); return; }
+    } else {
+      const updates: { name?: string; color?: string; pin?: string } = {
+        name: therapistFormName.trim(),
+        color: therapistFormColor,
+      };
+      if (therapistFormPin.length === 4) updates.pin = therapistFormPin;
+      const res = await updateTherapist(therapistFormModal.therapist.id, updates);
+      if (!res.success) { alert('수정 실패: ' + res.error); setTherapistFormSaving(false); return; }
+    }
+    setTherapistFormModal(null);
+    await loadData();
+    setTherapistFormSaving(false);
+  };
+
+  const handleTherapistStatusChange = async (therapist: Therapist, isActive: boolean) => {
+    const action = isActive ? '복직' : '퇴사';
+    if (!confirm(`${therapist.name} 치료사를 ${action} 처리하시겠습니까?`)) return;
+    const res = await updateTherapist(therapist.id, { is_active: isActive });
+    if (res.success) {
+      await loadData();
+    } else {
+      alert(`${action} 처리 실패: ` + res.error);
+    }
+  };
+
+  const confirmTherapistDelete = async () => {
+    if (!therapistDeleteTarget) return;
+    if (therapistDeletePassword !== 'wkfqhs2022!@#') {
+      alert('비밀번호가 일치하지 않습니다.');
+      return;
+    }
+    const res = await deleteTherapistAndData(therapistDeleteTarget.id);
+    if (res.success) {
+      alert('치료사 및 관련 데이터가 삭제되었습니다.');
+      setTherapistDeleteTarget(null);
+      setTherapistDeletePassword('');
+      await loadData();
+    } else {
+      alert('삭제 실패: ' + res.error);
+    }
+  };
 
   const logout = () => {
     sessionStorage.clear();
@@ -683,6 +764,13 @@ export default function AdminPage() {
               ${adminTab === 'logs' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
           >
             전체 로그
+          </button>
+          <button
+            onClick={() => setAdminTab('therapists')}
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
+              ${adminTab === 'therapists' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            치료사 관리
           </button>
         </div>
 
@@ -1681,6 +1769,130 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* =========================================================================
+            탭 8: 치료사 관리
+        ========================================================================= */}
+        {adminTab === 'therapists' && (
+          <div className="space-y-4 animate-fade-in-up">
+            <div className="flex justify-between items-end flex-wrap gap-3">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">치료사 관리</h2>
+                <p className="text-sm text-slate-500">치료사 등록, 수정, 퇴사/복직, 삭제를 관리합니다.</p>
+              </div>
+              <button
+                onClick={() => handleTherapistFormOpen('add')}
+                className="btn-primary text-sm py-2 px-4"
+              >
+                + 치료사 추가
+              </button>
+            </div>
+
+            {/* 검색 + 필터 */}
+            <div className="flex gap-2 flex-wrap">
+              <input
+                type="text"
+                placeholder="이름 검색"
+                className="input-field max-w-[200px] h-[36px] py-1 text-sm"
+                value={therapistSearch}
+                onChange={(e) => setTherapistSearch(e.target.value)}
+              />
+              {(['all', 'active', 'inactive'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setTherapistStatusFilter(f)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors border ${
+                    therapistStatusFilter === f
+                      ? 'bg-sky-500 text-white border-sky-500'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {f === 'all' ? '전체' : f === 'active' ? '재직중' : '퇴사'}
+                </button>
+              ))}
+            </div>
+
+            {/* 치료사 목록 */}
+            <div className="space-y-3">
+              {allTherapists
+                .filter((t) => !therapistSearch || t.name.includes(therapistSearch))
+                .filter((t) =>
+                  therapistStatusFilter === 'all' ? true :
+                  therapistStatusFilter === 'active' ? t.is_active :
+                  !t.is_active
+                )
+                .map((t) => (
+                  <div key={t.id} className={`card flex items-center justify-between gap-3 ${!t.is_active ? 'opacity-60' : ''}`}>
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="w-11 h-11 rounded-2xl flex items-center justify-center text-white text-lg font-bold flex-shrink-0"
+                        style={{ backgroundColor: t.color || '#94a3b8' }}
+                      >
+                        {t.name[0]}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-slate-800">{t.name}</p>
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            t.is_active
+                              ? 'bg-emerald-100 text-emerald-700'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}>
+                            {t.is_active ? '재직중' : '퇴사'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          예약 {reservations.filter(r => r.therapist_id === t.id).length}건
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => handleTherapistFormOpen('edit', t)}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+                      >
+                        수정
+                      </button>
+                      {t.is_active ? (
+                        <button
+                          onClick={() => handleTherapistStatusChange(t, false)}
+                          className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                        >
+                          퇴사
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleTherapistStatusChange(t, true)}
+                          className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors"
+                        >
+                          복직
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setTherapistDeleteTarget(t);
+                          setTherapistDeletePassword('');
+                          setShowTherapistDeletePassword(false);
+                        }}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              {allTherapists.filter((t) =>
+                (!therapistSearch || t.name.includes(therapistSearch)) &&
+                (therapistStatusFilter === 'all' ? true : therapistStatusFilter === 'active' ? t.is_active : !t.is_active)
+              ).length === 0 && (
+                <div className="card text-center py-10 text-slate-400">
+                  <p className="text-3xl mb-2">👨‍⚕️</p>
+                  <p className="font-semibold">해당하는 치료사가 없습니다.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Custom Month Picker Modal */}
         {pickerType === 'list' && (
           <MonthPickerModal
@@ -1751,6 +1963,119 @@ export default function AdminPage() {
                 삭제 진행
               </button>
               <button onClick={() => setLogDeleteTarget(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          치료사 삭제 확인 팝업
+      ========================================================================= */}
+      {therapistDeleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 animate-fade-in-up">
+            <h3 className="font-bold text-red-600 text-lg">⚠️ 치료사 삭제</h3>
+            <p className="text-sm text-slate-600">
+              정말로 <strong>[{therapistDeleteTarget.name}]</strong> 치료사를 삭제하시겠습니까?<br />
+              <span className="text-xs text-red-500">(해당 치료사가 담당한 모든 예약 및 휴무 내역이 데이터베이스에서 영구 삭제되며 복구할 수 없습니다)</span>
+            </p>
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">관리자 비밀번호</label>
+              <div className="relative">
+                <input
+                  type={showTherapistDeletePassword ? 'text' : 'password'}
+                  className="input-field pr-16"
+                  placeholder="비밀번호를 입력하세요"
+                  value={therapistDeletePassword}
+                  onChange={(e) => setTherapistDeletePassword(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && confirmTherapistDelete()}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowTherapistDeletePassword(prev => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  {showTherapistDeletePassword ? '숨기기' : '보기'}
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={confirmTherapistDelete}
+                disabled={!therapistDeletePassword}
+                className="btn-primary bg-red-500 hover:bg-red-600 border-red-500 hover:border-red-600 text-white font-semibold rounded-xl flex-1 py-2 text-sm transition-colors disabled:opacity-50"
+              >
+                삭제 진행
+              </button>
+              <button onClick={() => setTherapistDeleteTarget(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          치료사 추가/수정 폼 팝업
+      ========================================================================= */}
+      {therapistFormModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 animate-fade-in-up">
+            <h3 className="font-bold text-slate-800 text-lg">
+              {therapistFormModal.mode === 'add' ? '👨‍⚕️ 치료사 추가' : '✏️ 치료사 수정'}
+            </h3>
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">이름</label>
+              <input
+                type="text"
+                className="input-field"
+                placeholder="예: 홍길동 치료사"
+                value={therapistFormName}
+                onChange={(e) => setTherapistFormName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">색상 (캘린더 표시 색)</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  className="w-10 h-10 rounded-xl border border-slate-200 cursor-pointer"
+                  value={therapistFormColor}
+                  onChange={(e) => setTherapistFormColor(e.target.value)}
+                />
+                <div className="flex gap-2 flex-wrap">
+                  {['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316'].map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setTherapistFormColor(c)}
+                      className={`w-7 h-7 rounded-lg border-2 transition-transform ${therapistFormColor === c ? 'border-slate-800 scale-110' : 'border-transparent'}`}
+                      style={{ backgroundColor: c }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
+                {therapistFormModal.mode === 'add' ? 'PIN (4자리 숫자)' : 'PIN 변경 (4자리, 비워두면 유지)'}
+              </label>
+              <input
+                type="password"
+                className="input-field tracking-widest text-center text-xl"
+                placeholder="••••"
+                maxLength={4}
+                inputMode="numeric"
+                value={therapistFormPin}
+                onChange={(e) => setTherapistFormPin(e.target.value.replace(/\D/g, ''))}
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={handleTherapistFormSave}
+                disabled={therapistFormSaving || !therapistFormName.trim()}
+                className="btn-primary flex-1 py-2 text-sm"
+              >
+                {therapistFormSaving ? '저장 중...' : therapistFormModal.mode === 'add' ? '추가' : '저장'}
+              </button>
+              <button onClick={() => setTherapistFormModal(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
             </div>
           </div>
         </div>
