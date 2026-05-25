@@ -116,13 +116,15 @@ export default function MyBookingPage() {
         {/* Results */}
         {searched && !loading && (
           <div className="animate-fade-in-up space-y-3">
-            {searchError === 'wrong_pin' ? (
-              <div className="card text-center py-12">
+            {searchError && searchError !== 'not_found' ? (
+              <div className="card text-center py-12 border-red-200 bg-red-50">
                 <div className="text-4xl mb-3">🔒</div>
-                <p className="font-semibold text-red-500 mb-1">비밀번호가 틀렸습니다</p>
-                <p className="text-slate-400 text-sm">PIN 번호를 다시 확인해 주세요</p>
+                <p className="font-semibold text-red-600 mb-1">
+                  {searchError === 'wrong_pin' ? '비밀번호가 틀렸습니다' : searchError}
+                </p>
+                <p className="text-red-400 text-sm">확인 후 다시 시도해 주세요</p>
               </div>
-            ) : searchError === 'not_found' || reservations.length === 0 ? (
+            ) : reservations.length === 0 ? (
               <div className="card text-center py-12">
                 <div className="text-4xl mb-3">📭</div>
                 <p className="font-semibold text-slate-700 mb-1">예약 내역이 없습니다</p>
