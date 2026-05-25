@@ -1467,7 +1467,7 @@ export default function AdminPage() {
                            : p.latestStatus === 'paid' ? <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg text-xs font-semibold">수납완료</span>
                            : <span className="bg-slate-50 text-slate-400 px-2 py-1 rounded-lg text-xs font-semibold">{STATUS_MAP[p.latestStatus as keyof typeof STATUS_MAP]?.label || p.latestStatus}</span>}
                         </td>
-                        <td className="p-4 text-center text-slate-600 font-medium">
+                        <td className="p-4 text-center text-slate-600 font-medium whitespace-nowrap">
                           {p.mainTherapist}
                         </td>
                         <td className="p-4 text-center text-slate-500 text-xs">
