@@ -1450,7 +1450,7 @@ export default function AdminPage() {
                           </div>
                           <div className="text-xs text-slate-500">{p.phone}</div>
                         </td>
-                        <td className="p-4 text-center">
+                        <td className="p-4 text-center whitespace-nowrap">
                           <div className="text-xs">방문 <strong className="text-sky-600">{p.paidCount}</strong>건</div>
                           <div className="text-[10px] text-slate-400 mt-0.5">
                             (총 예약 {p.totalCount} / 취소 {p.cancelCount})
@@ -1470,7 +1470,7 @@ export default function AdminPage() {
                         <td className="p-4 text-center text-slate-600 font-medium whitespace-nowrap">
                           {p.mainTherapist}
                         </td>
-                        <td className="p-4 text-center text-slate-500 text-xs">
+                        <td className="p-4 text-center text-slate-500 text-xs whitespace-nowrap">
                           <button onClick={() => {
                             setViewingHistoryFor(p);
                             setHistoryMonth(p.latestDate.slice(0, 7) || toDateStr(new Date()).slice(0, 7));
