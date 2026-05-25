@@ -1512,8 +1512,12 @@ export default function AdminPage() {
                               onClick={async () => {
                                 const isB = p.isBlacklisted;
                                 if (!confirm(isB ? '예약 차단을 해제하시겠습니까?' : '이 환자의 온라인 예약을 차단하시겠습니까?')) return;
-                                await toggleBlacklist(p.phone, !isB);
-                                loadData();
+                                const ok = await toggleBlacklist(p.phone, !isB);
+                                if (!ok) {
+                                  alert('처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+                                  return;
+                                }
+                                await loadData();
                               }}
                               className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors w-full whitespace-nowrap ${p.isBlacklisted ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
                             >
