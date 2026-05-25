@@ -1,6 +1,6 @@
 'use client';
 
-import { Reservation, Therapist, BlockedSlot, AuditLog, ActionType, SmsLog } from './types';
+import { Reservation, Therapist, AuditLog, ActionType, SmsLog } from './types';
 import { supabase, isSupabaseConfigured } from './supabase';
 import { MOCK_THERAPISTS } from './mockData';
 import { isSlotOverlapping } from './slots';
@@ -869,14 +869,14 @@ export async function getBlacklistedPhones(): Promise<string[]> {
     }
   }
 
-  const { data, error } = await supabase.rpc('get_blacklisted_phones');
+  const { data, error } = await supabase.from('blacklisted_patients').select('phone');
   if (error) {
     if (typeof window !== 'undefined') {
       try { return JSON.parse(localStorage.getItem('jalbon_blacklist') || '[]'); } catch {}
     }
     return [];
   }
-  return (data as string[]) || [];
+  return (data || []).map((b: any) => b.phone);
 }
 
 export async function toggleBlacklist(phone: string, isBlacklisted: boolean): Promise<boolean> {
@@ -895,11 +895,13 @@ export async function toggleBlacklist(phone: string, isBlacklisted: boolean): Pr
     return true;
   }
 
-  const { error } = await supabase.rpc('toggle_blacklist', {
-    p_phone: phone,
-    p_block: isBlacklisted,
-  });
-  return !error;
+  if (isBlacklisted) {
+    const { error } = await supabase.from('blacklisted_patients').insert({ phone });
+    return !error;
+  } else {
+    const { error } = await supabase.from('blacklisted_patients').delete().eq('phone', phone);
+    return !error;
+  }
 }
 
 // ─── 노쇼 자동 처리 ──────────────────────────────────
