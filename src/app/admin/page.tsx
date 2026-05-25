@@ -1380,11 +1380,11 @@ export default function AdminPage() {
                   <thead>
                     <tr className="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider border-b border-slate-100">
                       <th className="p-4 font-semibold text-center w-12">No.</th>
-                      <th className="p-4 font-semibold">환자명 (전화번호)</th>
+                      <th className="p-4 font-semibold">환자명<br/>(전화번호)</th>
                       <th className="p-4 font-semibold text-center">방문 현황</th>
                       <th className="p-4 font-semibold text-center">
                         <div className="flex flex-col items-center justify-center gap-1">
-                          초진/재진
+                          초진<br/>재진
                           <select
                             value={patientTypeFilter}
                             onChange={(e) => setPatientTypeFilter(e.target.value as any)}
