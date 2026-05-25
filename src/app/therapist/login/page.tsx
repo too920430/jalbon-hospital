@@ -48,6 +48,11 @@ export default function TherapistLoginPage() {
       return;
     }
 
+    // 공통: 로그인 시간 + 인증 쿠키 설정 (세션 만료 및 미들웨어용)
+    const loginTime = Date.now().toString();
+    sessionStorage.setItem('jalbon_login_time', loginTime);
+    document.cookie = 'jalbon_auth=true; path=/; max-age=28800; SameSite=Strict';
+
     // 성공 처리
     if (role === 'admin') {
       sessionStorage.setItem('jalbon_role', 'admin');
@@ -56,7 +61,6 @@ export default function TherapistLoginPage() {
       router.push('/admin');
     } else {
       sessionStorage.setItem('jalbon_role', 'therapist');
-      // color 등을 원래 therapists 배열에서 찾아오거나 임의 배정
       const fullTherapist = therapists.find(t => t.id === selectedId) || { id: selectedId, name };
       sessionStorage.setItem('jalbon_therapist', JSON.stringify(fullTherapist));
       localStorage.setItem('jalbon_is_therapist_device', 'true');

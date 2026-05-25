@@ -117,3 +117,12 @@ button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ─── Print (정산 PDF) ─── */
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: fixed; inset: 0; padding: 20px; background: white; }
+  .no-print { display: none !important; }
+  .card { box-shadow: none !important; border: 1px solid #e2e8f0 !important; }
+}

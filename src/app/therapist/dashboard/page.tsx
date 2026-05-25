@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
-import { getTherapistReservations, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getTherapistLeaves, insertTherapistLeave, deleteTherapistLeave } from '@/lib/api';
+import { getTherapistReservations, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getTherapistLeaves, insertTherapistLeave, deleteTherapistLeave, updateReservationMemo } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { formatDate, formatTime, toDateStr, formatTherapistName, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
 const STATUS_MAP = {
@@ -50,13 +51,37 @@ export default function TherapistDashboard() {
   const [leaveType, setLeaveType] = useState('연차');
   const [leaveReason, setLeaveReason] = useState('');
 
+  const [newResCount, setNewResCount] = useState(0);
+  const [memoTarget, setMemoTarget] = useState<{id: string; memo: string} | null>(null);
+  const [memoInput, setMemoInput] = useState('');
+  const [memoSaving, setMemoSaving] = useState(false);
+
   useEffect(() => {
     const stored = sessionStorage.getItem('jalbon_therapist');
     const role = sessionStorage.getItem('jalbon_role');
     if (!stored || role !== 'therapist') { router.push('/therapist/login'); return; }
+
+    const loginTime = sessionStorage.getItem('jalbon_login_time');
+    if (loginTime && Date.now() - parseInt(loginTime) > 8 * 60 * 60 * 1000) {
+      sessionStorage.clear();
+      document.cookie = 'jalbon_auth=; path=/; max-age=0';
+      router.push('/therapist/login');
+      return;
+    }
+
     const t = JSON.parse(stored) as Therapist;
     setTherapist(t);
     loadReservations(t.id);
+
+    const channel = supabase
+      .channel(`therapist-reservations-${t.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reservations', filter: `therapist_id=eq.${t.id}` }, () => {
+        setNewResCount(c => c + 1);
+        loadReservations(t.id);
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   // 외부 클릭 시 picker 닫기
@@ -122,7 +147,7 @@ export default function TherapistDashboard() {
     setActionLoading(null);
   };
 
-  const logout = () => { sessionStorage.clear(); router.push('/therapist/login'); };
+  const logout = () => { sessionStorage.clear(); document.cookie = 'jalbon_auth=; path=/; max-age=0'; router.push('/therapist/login'); };
 
   const todayStr = toDateStr(new Date());
   const todayRes = reservations.filter(r => r.date === todayStr);
@@ -160,6 +185,14 @@ export default function TherapistDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {newResCount > 0 && (
+              <button
+                onClick={() => { setNewResCount(0); setTab('pending'); }}
+                className="text-xs text-white font-semibold px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 transition-colors animate-pulse-soft"
+              >
+                🔔 신규 {newResCount}건
+              </button>
+            )}
             <Link href="/" id="patient-view-link"
                   className="text-xs text-sky-500 font-semibold px-3 py-1.5 rounded-xl border border-sky-200 hover:bg-sky-50 transition-colors">
               환자화면
@@ -456,6 +489,11 @@ export default function TherapistDashboard() {
                     <p>👤 <strong>{res.patient_name}</strong></p>
                     <p>📱 {res.patient_phone}</p>
                     {res.pin && <p className="text-xs text-slate-400 mt-1">🔒 PIN: {res.pin}</p>}
+                    {res.internal_memo && (
+                      <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-800 font-medium">
+                        📝 {res.internal_memo}
+                      </div>
+                    )}
                   </div>
 
                   {/* 날짜/시간 변경 섹션 */}
@@ -559,6 +597,12 @@ export default function TherapistDashboard() {
                           </button>
                         </>
                       )}
+                      <button
+                        onClick={() => { setMemoTarget({ id: res.id, memo: res.internal_memo || '' }); setMemoInput(res.internal_memo || ''); }}
+                        className={`w-full py-1.5 rounded-xl text-xs font-semibold transition-colors border ${res.internal_memo ? 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100' : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
+                      >
+                        {res.internal_memo ? '📝 메모 수정' : '📝 메모 추가'}
+                      </button>
                     </div>
                   )}
 
@@ -595,6 +639,38 @@ export default function TherapistDashboard() {
           )
         )}
       </div>
+
+      {/* 메모 편집 모달 */}
+      {memoTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 animate-fade-in-up">
+            <h3 className="font-bold text-slate-800 text-lg">📝 내부 메모</h3>
+            <p className="text-xs text-slate-400">환자에게는 표시되지 않는 내부 메모입니다.</p>
+            <textarea
+              className="input-field min-h-[120px] resize-none"
+              placeholder="내부 메모를 입력하세요..."
+              value={memoInput}
+              onChange={(e) => setMemoInput(e.target.value)}
+            />
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={async () => {
+                  setMemoSaving(true);
+                  await updateReservationMemo(memoTarget.id, memoInput);
+                  setMemoSaving(false);
+                  setMemoTarget(null);
+                  if (therapist) loadReservations(therapist.id);
+                }}
+                disabled={memoSaving}
+                className="btn-primary flex-1 py-2 text-sm"
+              >
+                {memoSaving ? '저장 중...' : '저장'}
+              </button>
+              <button onClick={() => setMemoTarget(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

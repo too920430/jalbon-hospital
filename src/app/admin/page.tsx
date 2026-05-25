@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist, AuditLog, SmsLog } from '@/lib/types';
-import { getAllReservations, getTherapists, getAllTherapists, addTherapist, updateTherapist, deleteTherapistAndData, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs, deleteSmsLogs, getTherapistLeaves, insertTherapistLeave, updateTherapistLeave, deleteTherapistLeave, getBlacklistedPhones, toggleBlacklist } from '@/lib/api';
+import { getAllReservations, getTherapists, getAllTherapists, addTherapist, updateTherapist, deleteTherapistAndData, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs, deleteSmsLogs, getTherapistLeaves, insertTherapistLeave, updateTherapistLeave, deleteTherapistLeave, getBlacklistedPhones, toggleBlacklist, updateReservationMemo } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -142,14 +143,39 @@ export default function AdminPage() {
   const [editLeaveStart, setEditLeaveStart] = useState('');
   const [editLeaveEnd, setEditLeaveEnd] = useState('');
   const [editLeaveReason, setEditLeaveReason] = useState('');
+
+  // 신규 예약 Realtime 알림
+  const [newResCount, setNewResCount] = useState(0);
+
+  // 메모 편집
+  const [memoTarget, setMemoTarget] = useState<{id: string; memo: string} | null>(null);
+  const [memoInput, setMemoInput] = useState('');
+  const [memoSaving, setMemoSaving] = useState(false);
   useEffect(() => {
     const role = sessionStorage.getItem('jalbon_role');
-    if (role !== 'admin') {
+    if (role !== 'admin') { router.push('/therapist/login'); return; }
+
+    // 8시간 세션 만료
+    const loginTime = sessionStorage.getItem('jalbon_login_time');
+    if (loginTime && Date.now() - parseInt(loginTime) > 8 * 60 * 60 * 1000) {
+      sessionStorage.clear();
+      document.cookie = 'jalbon_auth=; path=/; max-age=0';
       router.push('/therapist/login');
       return;
     }
 
     loadData();
+
+    // Supabase Realtime: 신규 예약 자동 감지
+    const channel = supabase
+      .channel('admin-new-reservations')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reservations' }, () => {
+        setNewResCount(c => c + 1);
+        loadData();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const loadData = async () => {
@@ -286,6 +312,7 @@ export default function AdminPage() {
 
   const logout = () => {
     sessionStorage.clear();
+    document.cookie = 'jalbon_auth=; path=/; max-age=0';
     router.push('/therapist/login');
   };
 
@@ -699,7 +726,15 @@ export default function AdminPage() {
               <p className="text-xs text-slate-400">창원 본앤밸런스 도수치료실</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            {newResCount > 0 && (
+              <button
+                onClick={() => { setNewResCount(0); setAdminTab('overview'); setFilterDateMode('today'); setListDate(today); }}
+                className="text-xs text-white font-semibold px-3 py-1.5 rounded-xl bg-red-500 hover:bg-red-600 transition-colors animate-pulse-soft"
+              >
+                🔔 신규 {newResCount}건
+              </button>
+            )}
             <Link href="/" className="text-xs text-sky-500 font-semibold px-3 py-1.5 rounded-xl border border-sky-200 hover:bg-sky-50 transition-colors">
               환자화면
             </Link>
@@ -709,6 +744,22 @@ export default function AdminPage() {
             </button>
           </div>
         </div>
+        {!loading && therapists.length > 0 && (
+          <div className="border-t border-slate-100 px-4 py-2">
+            <div className="max-w-4xl mx-auto flex gap-4 overflow-x-auto">
+              {therapists.map(t => {
+                const cnt = reservations.filter(r => r.date === today && r.therapist_id === t.id && r.status !== 'rejected' && r.status !== 'no_show').length;
+                return (
+                  <div key={t.id} className="flex items-center gap-1.5 whitespace-nowrap text-xs">
+                    <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
+                    <span className="text-slate-600 font-semibold">{t.name}</span>
+                    <span className="font-bold" style={{ color: t.color }}>{cnt}건</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </header>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
@@ -929,7 +980,7 @@ export default function AdminPage() {
                                 <span className={`status-badge ${statusInfo.color}`}>{statusInfo.label}</span>
                               </td>
                               <td className="px-4 py-3">
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 flex-wrap">
                                   {res.status === 'done' && (
                                     <button onClick={async () => {
                                       if (!confirm('수납을 완료 처리하시겠습니까?')) return;
@@ -943,6 +994,12 @@ export default function AdminPage() {
                                     }} className="text-xs text-indigo-600 font-semibold px-2 py-1 rounded-lg border border-indigo-200">💰 수납완료</button>
                                   )}
                                   <button onClick={() => startEdit(res)} className="text-xs text-sky-600 font-semibold px-2 py-1 rounded-lg border border-sky-200">📅 수정</button>
+                                  <button
+                                    onClick={() => { setMemoTarget({ id: res.id, memo: res.internal_memo || '' }); setMemoInput(res.internal_memo || ''); }}
+                                    className={`text-xs font-semibold px-2 py-1 rounded-lg border ${res.internal_memo ? 'border-amber-200 text-amber-600 bg-amber-50' : 'border-slate-200 text-slate-500'}`}
+                                  >
+                                    📝{res.internal_memo ? ' 메모' : '+'}
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -1542,7 +1599,10 @@ export default function AdminPage() {
                 <h2 className="text-xl font-bold text-slate-800">인센티브 정산 관리</h2>
                 <p className="text-sm text-slate-500">수납 완료된 건을 기준으로 단가와 3.3% 세금을 자동 계산합니다.</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-2 no-print">
+                <button onClick={() => window.print()} className="bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 font-bold px-4 rounded-xl text-sm transition-colors h-[42px] flex items-center gap-2">
+                  🖨️ PDF 출력
+                </button>
                 <button onClick={() => {
                   const data = settlementStats.map(stat => ({
                     '치료사': stat.therapist.name,
@@ -1571,6 +1631,7 @@ export default function AdminPage() {
               </div>
             </div>
 
+            <div className="print-area">
             <div className="grid gap-4 md:grid-cols-2">
               {settlementStats.map(stat => (
                 <div key={stat.therapist.id} className="card relative overflow-hidden">
@@ -1633,6 +1694,7 @@ export default function AdminPage() {
                   </div>
                 </div>
               ))}
+            </div>
             </div>
 
             {/* 정산 상세 내역 팝업 */}
@@ -1897,6 +1959,40 @@ export default function AdminPage() {
         )}
 
       </div>
+
+      {/* =========================================================================
+          메모 편집 팝업
+      ========================================================================= */}
+      {memoTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 animate-fade-in-up">
+            <h3 className="font-bold text-slate-800 text-lg">📝 내부 메모</h3>
+            <p className="text-xs text-slate-400">환자에게는 표시되지 않는 내부 메모입니다.</p>
+            <textarea
+              className="input-field min-h-[120px] resize-none"
+              placeholder="내부 메모를 입력하세요..."
+              value={memoInput}
+              onChange={(e) => setMemoInput(e.target.value)}
+            />
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={async () => {
+                  setMemoSaving(true);
+                  await updateReservationMemo(memoTarget.id, memoInput);
+                  setMemoSaving(false);
+                  setMemoTarget(null);
+                  loadData();
+                }}
+                disabled={memoSaving}
+                className="btn-primary flex-1 py-2 text-sm"
+              >
+                {memoSaving ? '저장 중...' : '저장'}
+              </button>
+              <button onClick={() => setMemoTarget(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* =========================================================================
           로그 삭제 팝업

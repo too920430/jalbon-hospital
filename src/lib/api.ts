@@ -105,6 +105,12 @@ export async function createReservation(params: {
     return { success: false, error: '현재 온라인 예약을 이용하실 수 없습니다. 병원으로 직접 문의해 주세요.' };
   }
 
+  // 예약 생성 Rate Limit (당일 3건 초과 차단)
+  const rateCheck = await checkReservationRateLimit(params.patientPhone, ip);
+  if (!rateCheck.allowed) {
+    return { success: false, error: rateCheck.reason };
+  }
+
   const auditDetails = { 
     date: params.date, 
     time: params.startTime, 
@@ -828,6 +834,28 @@ export async function deleteTherapistLeave(id: string): Promise<{ success: boole
   }
 
   return { success: true };
+}
+
+// ─── 예약 내부 메모 업데이트 ─────────────────────────
+export async function updateReservationMemo(id: string, memo: string): Promise<boolean> {
+  if (!isSupabaseConfigured) return true;
+  const { data, error } = await supabase.rpc('update_reservation_memo', {
+    p_id: id,
+    p_memo: memo,
+  });
+  if (error) { console.error('memo update failed', error); return false; }
+  return (data as any)?.success !== false;
+}
+
+// ─── 예약 생성 Rate Limit 확인 ───────────────────────
+export async function checkReservationRateLimit(phone: string, ip: string): Promise<{ allowed: boolean; reason?: string }> {
+  if (!isSupabaseConfigured) return { allowed: true };
+  const { data, error } = await supabase.rpc('check_reservation_rate_limit', {
+    p_phone: phone,
+    p_ip: ip,
+  });
+  if (error) return { allowed: true }; // 오류 시 통과
+  return data as { allowed: boolean; reason?: string };
 }
 
 // ─── 환자 블랙리스트 관리 ─────────────────────────

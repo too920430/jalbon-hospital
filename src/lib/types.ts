@@ -19,6 +19,7 @@ export interface Reservation {
   duration: 30 | 50;
   status: 'pending' | 'approved' | 'rejected' | 'done' | 'paid' | 'no_show';
   note?: string;
+  internal_memo?: string;
   created_at: string;
 }
 
