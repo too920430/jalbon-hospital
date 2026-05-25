@@ -108,6 +108,7 @@ export default function AdminPage() {
   const [therapistDeleteTarget, setTherapistDeleteTarget] = useState<Therapist | null>(null);
   const [therapistDeletePassword, setTherapistDeletePassword] = useState('');
   const [showTherapistDeletePassword, setShowTherapistDeletePassword] = useState(false);
+  const [therapistStatusTarget, setTherapistStatusTarget] = useState<{therapist: Therapist; isActive: boolean} | null>(null);
   const [settlementMonth, setSettlementMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
@@ -250,14 +251,19 @@ export default function AdminPage() {
     setTherapistFormSaving(false);
   };
 
-  const handleTherapistStatusChange = async (therapist: Therapist, isActive: boolean) => {
-    const action = isActive ? '복직' : '퇴사';
-    if (!confirm(`${therapist.name} 치료사를 ${action} 처리하시겠습니까?`)) return;
+  const handleTherapistStatusChange = (therapist: Therapist, isActive: boolean) => {
+    setTherapistStatusTarget({ therapist, isActive });
+  };
+
+  const confirmTherapistStatusChange = async () => {
+    if (!therapistStatusTarget) return;
+    const { therapist, isActive } = therapistStatusTarget;
     const res = await updateTherapist(therapist.id, { is_active: isActive });
+    setTherapistStatusTarget(null);
     if (res.success) {
       await loadData();
     } else {
-      alert(`${action} 처리 실패: ` + res.error);
+      alert(`처리 실패: ` + res.error);
     }
   };
 
@@ -1963,6 +1969,35 @@ export default function AdminPage() {
                 삭제 진행
               </button>
               <button onClick={() => setLogDeleteTarget(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          치료사 퇴사/복직 확인 팝업
+      ========================================================================= */}
+      {therapistStatusTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full p-6 space-y-4 animate-fade-in-up">
+            <h3 className="font-bold text-slate-800 text-lg">
+              {therapistStatusTarget.isActive ? '✅ 복직 처리' : '🚪 퇴사 처리'}
+            </h3>
+            <p className="text-sm text-slate-600">
+              <strong>{therapistStatusTarget.therapist.name}</strong> 치료사를{' '}
+              {therapistStatusTarget.isActive ? '복직' : '퇴사'} 처리하시겠습니까?
+              {!therapistStatusTarget.isActive && (
+                <><br /><span className="text-xs text-slate-400">(기존 예약 데이터는 삭제되지 않고 보존됩니다)</span></>
+              )}
+            </p>
+            <div className="flex gap-2 pt-2">
+              <button
+                onClick={confirmTherapistStatusChange}
+                className={`btn-primary flex-1 py-2 text-sm ${!therapistStatusTarget.isActive ? 'bg-amber-500 hover:bg-amber-600 border-amber-500 hover:border-amber-600' : ''}`}
+              >
+                {therapistStatusTarget.isActive ? '복직 처리' : '퇴사 처리'}
+              </button>
+              <button onClick={() => setTherapistStatusTarget(null)} className="btn-secondary flex-1 py-2 text-sm">취소</button>
             </div>
           </div>
         </div>
