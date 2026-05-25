@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist } from '@/lib/types';
-import { getTherapistReservations, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getTherapistLeaves, insertTherapistLeave, deleteTherapistLeave, updateReservationMemo } from '@/lib/api';
+import { getTherapistReservations, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getTherapistLeaves, insertTherapistLeave, deleteTherapistLeave, updateReservationMemo, autoMarkNoShows } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { formatDate, formatTime, toDateStr, formatTherapistName, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 
@@ -95,6 +95,7 @@ export default function TherapistDashboard() {
 
   const loadReservations = async (therapistId: string) => {
     setLoading(true);
+    await autoMarkNoShows();
     const data = await getTherapistReservations(therapistId);
     setReservations(data);
     const leavesData = await getTherapistLeaves();

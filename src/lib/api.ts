@@ -905,3 +905,38 @@ export async function toggleBlacklist(phone: string, isBlacklisted: boolean): Pr
     return !error;
   }
 }
+
+// ─── 노쇼 자동 처리 ──────────────────────────────────
+// 예약 확정 상태에서 예약 종료 시간이 지난 건을 자동으로 노쇼 처리
+export async function autoMarkNoShows(): Promise<void> {
+  if (!isSupabaseConfigured) return;
+
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+  const { data } = await supabase
+    .from('reservations')
+    .select('id, date, start_time, duration')
+    .eq('status', 'approved');
+
+  if (!data || data.length === 0) return;
+
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const noShowIds = data
+    .filter(r => {
+      if (r.date < today) return true;
+      if (r.date > today) return false;
+      const [h, m] = r.start_time.split(':').map(Number);
+      const endMinutes = h * 60 + m + (r.duration || 50);
+      return nowMinutes > endMinutes;
+    })
+    .map(r => r.id);
+
+  if (noShowIds.length === 0) return;
+
+  await supabase
+    .from('reservations')
+    .update({ status: 'no_show' })
+    .in('id', noShowIds);
+}

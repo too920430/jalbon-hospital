@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist, AuditLog, SmsLog } from '@/lib/types';
-import { getAllReservations, getTherapists, getAllTherapists, addTherapist, updateTherapist, deleteTherapistAndData, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs, deleteSmsLogs, getTherapistLeaves, insertTherapistLeave, updateTherapistLeave, deleteTherapistLeave, getBlacklistedPhones, toggleBlacklist, updateReservationMemo } from '@/lib/api';
+import { getAllReservations, getTherapists, getAllTherapists, addTherapist, updateTherapist, deleteTherapistAndData, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs, deleteSmsLogs, getTherapistLeaves, insertTherapistLeave, updateTherapistLeave, deleteTherapistLeave, getBlacklistedPhones, toggleBlacklist, updateReservationMemo, autoMarkNoShows } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
@@ -180,6 +180,7 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true);
+    await autoMarkNoShows();
     const [res, ths, allThs, logs, sms, lvs, bl] = await Promise.all([getAllReservations(), getTherapists(), getAllTherapists(), getAuditLogs(), getSmsLogs(), getTherapistLeaves(), getBlacklistedPhones()]);
     setReservations(res);
     setTherapists(ths);
