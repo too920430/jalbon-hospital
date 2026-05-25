@@ -44,6 +44,19 @@ export function getSlotError(time: string, duration: number, date: Date): string
   const startMins = h * 60 + m;
   const endMins = startMins + duration;
 
+  // 과거 시간 체크 (오늘일 경우)
+  const today = new Date();
+  if (
+    date.getFullYear() === today.getFullYear() &&
+    date.getMonth() === today.getMonth() &&
+    date.getDate() === today.getDate()
+  ) {
+    const currentMins = today.getHours() * 60 + today.getMinutes();
+    if (startMins < currentMins) {
+      return '예약불가';
+    }
+  }
+
   // 점심시간 겹침 체크 (평일 12:30 ~ 13:30)
   if (!isSaturday) {
     const lunchStart = 12 * 60 + 30; // 750

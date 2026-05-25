@@ -47,6 +47,11 @@ export async function createReservation(params: {
     }
   }
 
+  const blacklisted = await getBlacklistedPhones();
+  if (blacklisted.includes(params.patientPhone)) {
+    return { success: false, error: '현재 온라인 예약을 이용하실 수 없습니다. 병원으로 직접 문의해 주세요.' };
+  }
+
   const auditDetails = { 
     date: params.date, 
     time: params.startTime, 
@@ -124,6 +129,11 @@ export async function createReservation(params: {
 
 // ─── 기존 환자 비밀번호(PIN) 사전 검증 ────────────────────────
 export async function checkPatientPin(phone: string, pin: string): Promise<{ valid: boolean; error?: string }> {
+  const blacklisted = await getBlacklistedPhones();
+  if (blacklisted.includes(phone)) {
+    return { valid: false, error: '현재 온라인 예약을 이용하실 수 없습니다. 병원으로 직접 문의해 주세요.' };
+  }
+
   if (!isSupabaseConfigured) {
     const reservations = getLocalReservations();
     const pastRes = reservations.filter(r => r.patient_phone === phone);
@@ -327,7 +337,7 @@ export async function updateReservationStatus(
         await insertAuditLog('PAYMENT_COMPLETED', '관리자', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
       } else if (status === 'approved') {
         await insertAuditLog('RESERVATION_APPROVED', '치료사', { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
-        const msg = `[잘본병원] ${resToUpdate.patient_name}님의 예약(${resToUpdate.date} ${resToUpdate.start_time.slice(0,5)})이 확정되었습니다.`;
+        const msg = `[본앤밸런스] ${resToUpdate.patient_name}님의 예약(${resToUpdate.date} ${resToUpdate.start_time.slice(0,5)})이 확정되었습니다.`;
         await insertSmsLog(resToUpdate.patient_name, resToUpdate.patient_phone, msg, '치료사');
       }
     }
@@ -356,7 +366,7 @@ export async function updateReservationStatus(
       await insertAuditLog('TREATMENT_COMPLETED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
     } else if (status === 'approved') {
       await insertAuditLog('RESERVATION_APPROVED', thName, { patientName: resToUpdate.patient_name, date: resToUpdate.date, time: resToUpdate.start_time });
-      const msg = `[잘본병원] ${resToUpdate.patient_name}님의 예약(${resToUpdate.date} ${resToUpdate.start_time.slice(0,5)})이 ${thName}님께 확정되었습니다.`;
+      const msg = `[본앤밸런스] ${resToUpdate.patient_name}님의 예약(${resToUpdate.date} ${resToUpdate.start_time.slice(0,5)})이 ${thName}님께 확정되었습니다.`;
       await sendAligoSms(resToUpdate.patient_phone, msg);
       await insertSmsLog(resToUpdate.patient_name, resToUpdate.patient_phone, msg, thName);
     }
@@ -771,4 +781,52 @@ export async function deleteTherapistLeave(id: string): Promise<{ success: boole
   }
 
   return { success: true };
+}
+
+// ─── 환자 블랙리스트 관리 ─────────────────────────
+export async function getBlacklistedPhones(): Promise<string[]> {
+  if (!isSupabaseConfigured) {
+    if (typeof window === 'undefined') return [];
+    try {
+      return JSON.parse(localStorage.getItem('jalbon_blacklist') || '[]');
+    } catch {
+      return [];
+    }
+  }
+  
+  // Supabase 연동 시 blacklisted_patients 테이블이 없으면 에러가 날 수 있으므로 localStorage 우선 폴백 적용
+  const { data, error } = await supabase.from('blacklisted_patients').select('phone');
+  if (error) {
+    console.warn('Blacklist table might not exist, falling back to localStorage:', error.message);
+    if (typeof window !== 'undefined') {
+      try { return JSON.parse(localStorage.getItem('jalbon_blacklist') || '[]'); } catch {}
+    }
+    return [];
+  }
+  return (data || []).map((b: any) => b.phone);
+}
+
+export async function toggleBlacklist(phone: string, isBlacklisted: boolean): Promise<boolean> {
+  // localStorage에도 항상 상태 업데이트 (폴백 목적)
+  if (typeof window !== 'undefined') {
+    try {
+      let list = JSON.parse(localStorage.getItem('jalbon_blacklist') || '[]');
+      if (isBlacklisted) {
+        if (!list.includes(phone)) list.push(phone);
+      } else {
+        list = list.filter((p: string) => p !== phone);
+      }
+      localStorage.setItem('jalbon_blacklist', JSON.stringify(list));
+    } catch {}
+  }
+
+  if (!isSupabaseConfigured) return true;
+
+  if (isBlacklisted) {
+    const { error } = await supabase.from('blacklisted_patients').insert({ phone });
+    return !error;
+  } else {
+    const { error } = await supabase.from('blacklisted_patients').delete().eq('phone', phone);
+    return !error;
+  }
 }

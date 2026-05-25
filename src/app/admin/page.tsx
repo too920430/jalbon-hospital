@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Reservation, Therapist, AuditLog, SmsLog } from '@/lib/types';
-import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs, deleteSmsLogs, getTherapistLeaves, insertTherapistLeave, updateTherapistLeave, deleteTherapistLeave } from '@/lib/api';
+import { getAllReservations, getTherapists, updateReservationStatus, updateReservationDateTime, getSlotAvailability, deleteReservation, getAuditLogs, updatePatientPin, updateTherapistIncentive, insertAuditLog, deleteAuditLogs, getSmsLogs, deleteSmsLogs, getTherapistLeaves, insertTherapistLeave, updateTherapistLeave, deleteTherapistLeave, getBlacklistedPhones, toggleBlacklist } from '@/lib/api';
 import { formatDate, formatTime, toDateStr, getAvailableSlots, isOpenDay, getOccupiedCountForSlot, getSlotError } from '@/lib/slots';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
@@ -110,6 +110,7 @@ export default function AdminPage() {
   const [logFilter, setLogFilter] = useState<'all' | 'PATIENT_BOOKING' | 'THERAPIST_LOGIN' | 'RESERVATION_APPROVED' | 'TREATMENT_COMPLETED' | 'PAYMENT_COMPLETED' | 'RESERVATION_CANCELED' | 'THERAPIST_LEAVE'>('all');
   const [smsSearch, setSmsSearch] = useState('');
   const [leaves, setLeaves] = useState<import('@/lib/types').TherapistLeave[]>([]);
+  const [blacklistedPhones, setBlacklistedPhones] = useState<string[]>([]);
   
   // 휴무 관리 폼 상태
   const [leaveTherapistId, setLeaveTherapistId] = useState<string>('');
@@ -139,12 +140,13 @@ export default function AdminPage() {
 
   const loadData = async () => {
     setLoading(true);
-    const [res, ths, logs, sms, lvs] = await Promise.all([getAllReservations(), getTherapists(), getAuditLogs(), getSmsLogs(), getTherapistLeaves()]);
+    const [res, ths, logs, sms, lvs, bl] = await Promise.all([getAllReservations(), getTherapists(), getAuditLogs(), getSmsLogs(), getTherapistLeaves(), getBlacklistedPhones()]);
     setReservations(res);
     setTherapists(ths);
     setAuditLogs(logs);
     setSmsLogs(sms);
     setLeaves(lvs);
+    setBlacklistedPhones(bl);
     setLoading(false);
   };
 
@@ -417,7 +419,8 @@ export default function AdminPage() {
       latestStatus: latest.status,
       allVisits: resList.filter(r => r.status === 'paid' || r.status === 'done').sort((a, b) => new Date(b.date + ' ' + b.start_time).getTime() - new Date(a.date + ' ' + a.start_time).getTime()),
       mainTherapist: mainTherapist ? mainTherapist.name : '없음',
-      isNew: paidCount <= 1
+      isNew: paidCount <= 1,
+      isBlacklisted: blacklistedPhones.includes(phone)
     };
   }).filter(p => !patientSearch || p.name.includes(patientSearch) || p.phone.includes(patientSearch))
     .filter(p => patientStatusFilter === 'all' || p.latestStatus === patientStatusFilter)
@@ -647,13 +650,6 @@ export default function AdminPage() {
             연간 치료사 통계
           </button>
           <button
-            onClick={() => setAdminTab('patients')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'patients' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            환자 관리
-          </button>
-          <button
             onClick={() => setAdminTab('settlement')}
             className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
               ${adminTab === 'settlement' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
@@ -666,6 +662,13 @@ export default function AdminPage() {
               ${adminTab === 'sms' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
           >
             알리고 알림내역
+          </button>
+          <button
+            onClick={() => setAdminTab('patients')}
+            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
+              ${adminTab === 'patients' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
+          >
+            환자 관리
           </button>
           <button
             onClick={() => setAdminTab('leaves')}
@@ -1315,7 +1318,10 @@ export default function AdminPage() {
                         <td className="p-4">
                           <div className="font-bold text-slate-800 flex items-center gap-2">
                             {p.name}
-                            {p.noShowCount >= 2 && (
+                            {p.isBlacklisted && (
+                              <span className="bg-slate-800 text-white text-[10px] px-1.5 py-0.5 rounded font-bold" title="온라인 예약 차단됨">차단됨</span>
+                            )}
+                            {p.noShowCount >= 2 && !p.isBlacklisted && (
                               <span className="bg-rose-100 text-rose-700 text-[10px] px-1.5 py-0.5 rounded font-bold" title="누적 노쇼 2회 이상">🚨 요주의</span>
                             )}
                           </div>
@@ -1350,15 +1356,28 @@ export default function AdminPage() {
                           </button>
                         </td>
                         <td className="p-4 text-center">
-                          <button
-                            onClick={() => {
-                              setPinChangePatient({ name: p.name, phone: p.phone });
-                              setNewPin('');
-                            }}
-                            className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold px-3 py-1.5 rounded-lg transition-colors"
-                          >
-                            비밀번호 초기화
-                          </button>
+                          <div className="flex flex-col gap-1 items-center">
+                            <button
+                              onClick={() => {
+                                setPinChangePatient({ name: p.name, phone: p.phone });
+                                setNewPin('');
+                              }}
+                              className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-600 font-semibold px-3 py-1.5 rounded-lg transition-colors w-full whitespace-nowrap"
+                            >
+                              비밀번호 초기화
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const isB = p.isBlacklisted;
+                                if (!confirm(isB ? '예약 차단을 해제하시겠습니까?' : '이 환자의 온라인 예약을 차단하시겠습니까?')) return;
+                                await toggleBlacklist(p.phone, !isB);
+                                loadData();
+                              }}
+                              className={`text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors w-full whitespace-nowrap ${p.isBlacklisted ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}
+                            >
+                              {p.isBlacklisted ? '차단 해제' : '예약 차단'}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
