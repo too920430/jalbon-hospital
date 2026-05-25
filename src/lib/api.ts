@@ -868,75 +868,43 @@ export async function getBlacklistedPhones(): Promise<string[]> {
       return [];
     }
   }
-  
-  // Supabase 연동 시 blacklisted_patients 테이블이 없으면 에러가 날 수 있으므로 localStorage 우선 폴백 적용
-  const { data, error } = await supabase.from('blacklisted_patients').select('phone');
+
+  const { data, error } = await supabase.rpc('get_blacklisted_phones');
   if (error) {
-    console.warn('Blacklist table might not exist, falling back to localStorage:', error.message);
     if (typeof window !== 'undefined') {
       try { return JSON.parse(localStorage.getItem('jalbon_blacklist') || '[]'); } catch {}
     }
     return [];
   }
-  return (data || []).map((b: any) => b.phone);
+  return (data as string[]) || [];
 }
 
 export async function toggleBlacklist(phone: string, isBlacklisted: boolean): Promise<boolean> {
-  // localStorage에도 항상 상태 업데이트 (폴백 목적)
-  if (typeof window !== 'undefined') {
-    try {
-      let list = JSON.parse(localStorage.getItem('jalbon_blacklist') || '[]');
-      if (isBlacklisted) {
-        if (!list.includes(phone)) list.push(phone);
-      } else {
-        list = list.filter((p: string) => p !== phone);
-      }
-      localStorage.setItem('jalbon_blacklist', JSON.stringify(list));
-    } catch {}
+  if (!isSupabaseConfigured) {
+    if (typeof window !== 'undefined') {
+      try {
+        let list = JSON.parse(localStorage.getItem('jalbon_blacklist') || '[]');
+        if (isBlacklisted) {
+          if (!list.includes(phone)) list.push(phone);
+        } else {
+          list = list.filter((p: string) => p !== phone);
+        }
+        localStorage.setItem('jalbon_blacklist', JSON.stringify(list));
+      } catch {}
+    }
+    return true;
   }
 
-  if (!isSupabaseConfigured) return true;
-
-  if (isBlacklisted) {
-    const { error } = await supabase.from('blacklisted_patients').insert({ phone });
-    return !error;
-  } else {
-    const { error } = await supabase.from('blacklisted_patients').delete().eq('phone', phone);
-    return !error;
-  }
+  const { error } = await supabase.rpc('toggle_blacklist', {
+    p_phone: phone,
+    p_block: isBlacklisted,
+  });
+  return !error;
 }
 
 // ─── 노쇼 자동 처리 ──────────────────────────────────
 // 예약 확정 상태에서 예약 종료 시간이 지난 건을 자동으로 노쇼 처리
 export async function autoMarkNoShows(): Promise<void> {
   if (!isSupabaseConfigured) return;
-
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-
-  const { data } = await supabase
-    .from('reservations')
-    .select('id, date, start_time, duration')
-    .eq('status', 'approved');
-
-  if (!data || data.length === 0) return;
-
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
-
-  const noShowIds = data
-    .filter(r => {
-      if (r.date < today) return true;
-      if (r.date > today) return false;
-      const [h, m] = r.start_time.split(':').map(Number);
-      const endMinutes = h * 60 + m + (r.duration || 50);
-      return nowMinutes > endMinutes;
-    })
-    .map(r => r.id);
-
-  if (noShowIds.length === 0) return;
-
-  await supabase
-    .from('reservations')
-    .update({ status: 'no_show' })
-    .in('id', noShowIds);
+  await supabase.rpc('auto_mark_no_shows');
 }
