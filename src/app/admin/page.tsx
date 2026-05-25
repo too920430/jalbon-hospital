@@ -1448,7 +1448,7 @@ export default function AdminPage() {
                               <span className="bg-rose-100 text-rose-700 text-[10px] px-1.5 py-0.5 rounded font-bold" title="누적 노쇼 2회 이상">🚨 요주의</span>
                             )}
                           </div>
-                          <div className="text-xs text-slate-500">{p.phone}</div>
+                          <div className="text-xs text-slate-500 whitespace-nowrap">{p.phone}</div>
                         </td>
                         <td className="p-4 text-center whitespace-nowrap">
                           <div className="text-xs">방문 <strong className="text-sky-600">{p.paidCount}</strong>건</div>
