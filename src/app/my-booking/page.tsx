@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Reservation, Therapist } from '@/lib/types';
+import { Reservation } from '@/lib/types';
 import { getPatientReservations } from '@/lib/api';
 import { formatDate, formatTime, formatTherapistName } from '@/lib/slots';
 
@@ -22,7 +22,7 @@ export default function MyBookingPage() {
   const [searched, setSearched]   = useState(false);
   const [loading, setLoading]     = useState(false);
   const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [searchError, setSearchError] = useState<'not_found' | 'wrong_pin' | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const handlePhoneInput = (v: string) => {
     const digits = v.replace(/\D/g, '').slice(0, 11);

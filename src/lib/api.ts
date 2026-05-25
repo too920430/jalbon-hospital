@@ -164,27 +164,29 @@ export async function getPatientReservations(
     return { data: matchingPin.filter(r => r.status !== 'paid') };
   }
   
-  // 서버 사이드에서 안전하게 데이터 조회 (Rate Limit 적용)
+  // 1단계: PIN 검증 + Rate Limiting (무조건 먼저 실행)
+  const pinCheck = await checkPatientPin(phone, pin);
+  if (!pinCheck.valid) {
+    return { data: [], error: pinCheck.error };
+  }
+
+  // 2단계: PIN 통과 후 예약 데이터 조회
   const { data, error } = await supabase
-    .rpc('get_patient_reservations_secure', { p_name: name, p_phone: phone, p_pin: pin })
-    .select('*, therapist:therapists(*)');
-    
+    .from('reservations')
+    .select('*, therapist:therapists(*)')
+    .eq('patient_name', name)
+    .eq('patient_phone', phone)
+    .neq('status', 'paid');
+
   if (error) {
-    // 혹시 RPC 내부에 작성한 Rate Limit 오류 메시지가 반환될 수 있다면 캐치 (단, RPC에서 집합반환 시 에러를 던지게 만들지 않았으므로 결과가 없을 것임)
-    console.error('Failed to get patient reservations via RPC:', error);
+    console.error('Failed to get patient reservations:', error);
     return { data: [], error: 'not_found' };
   }
 
   if (!data || data.length === 0) {
-    // PIN이 틀렸거나, Rate Limit에 걸렸거나, 진짜 예약이 없거나 셋 중 하나임
-    // PIN 검증 RPC를 한 번 더 호출해서 정확한 에러 상태 확인
-    const pinCheck = await checkPatientPin(phone, pin);
-    if (!pinCheck.valid) {
-      return { data: [], error: pinCheck.error };
-    }
     return { data: [], error: 'not_found' };
   }
-  
+
   return { data: data as Reservation[] };
 }
 

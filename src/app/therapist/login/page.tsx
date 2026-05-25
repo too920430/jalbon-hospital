@@ -64,6 +64,9 @@ export default function TherapistLoginPage() {
       router.push('/therapist/dashboard');
     }
 
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen bg-[#F0F9FF] flex items-center justify-center px-4">
       <div className="max-w-sm w-full space-y-6 animate-fade-in-up">
