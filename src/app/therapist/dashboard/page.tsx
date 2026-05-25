@@ -488,7 +488,11 @@ export default function TherapistDashboard() {
                   <div className="space-y-1 text-sm text-slate-600 mb-3">
                     <p>👤 <strong>{res.patient_name}</strong></p>
                     <p>📱 {res.patient_phone}</p>
-                    {res.pin && <p className="text-xs text-slate-400 mt-1">🔒 PIN: {res.pin}</p>}
+                    {res.pin && (
+                      res.pin.length <= 6
+                        ? <p className="text-xs text-emerald-600 font-bold mt-1">🔒 PIN: {res.pin}</p>
+                        : <p className="text-xs text-slate-400 mt-1">🔒 PIN: 재설정 필요 (관리자에게 문의)</p>
+                    )}
                     {res.internal_memo && (
                       <div className="mt-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-800 font-medium">
                         📝 {res.internal_memo}
