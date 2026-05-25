@@ -229,8 +229,8 @@ export default function AdminPage() {
 
   const handleTherapistFormSave = async () => {
     if (!therapistFormModal || !therapistFormName.trim()) return;
-    if (therapistFormModal.mode === 'add' && therapistFormPin.length !== 4) {
-      alert('4자리 PIN을 입력해주세요.');
+    if (therapistFormModal.mode === 'add' && !therapistFormPin.trim()) {
+      alert('비밀번호를 입력해주세요.');
       return;
     }
     setTherapistFormSaving(true);
@@ -242,7 +242,7 @@ export default function AdminPage() {
         name: therapistFormName.trim(),
         color: therapistFormColor,
       };
-      if (therapistFormPin.length === 4) updates.pin = therapistFormPin;
+      if (therapistFormPin.trim()) updates.pin = therapistFormPin.trim();
       const res = await updateTherapist(therapistFormModal.therapist.id, updates);
       if (!res.success) { alert('수정 실패: ' + res.error); setTherapistFormSaving(false); return; }
     }
@@ -714,70 +714,38 @@ export default function AdminPage() {
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         
         {/* Tab Controls */}
-        <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-          <button
-            onClick={() => setAdminTab('overview')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'overview' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            대시보드 요약
-          </button>
-          <button
-            onClick={() => setAdminTab('monthly')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'monthly' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            월간 치료사 통계
-          </button>
-          <button
-            onClick={() => setAdminTab('yearly')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'yearly' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            연간 치료사 통계
-          </button>
-          <button
-            onClick={() => setAdminTab('settlement')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'settlement' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            정산 관리
-          </button>
-          <button
-            onClick={() => setAdminTab('sms')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'sms' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            알리고 알림내역
-          </button>
-          <button
-            onClick={() => setAdminTab('patients')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'patients' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            환자 관리
-          </button>
-          <button
-            onClick={() => setAdminTab('leaves')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'leaves' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            휴무 관리
-          </button>
-          <button
-            onClick={() => setAdminTab('logs')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'logs' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            전체 로그
-          </button>
-          <button
-            onClick={() => setAdminTab('therapists')}
-            className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all min-w-[120px]
-              ${adminTab === 'therapists' ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}
-          >
-            치료사 관리
-          </button>
+        <div className="space-y-2">
+          {/* 1행: 통계/로그 */}
+          <div className="flex gap-2">
+            {([
+              { id: 'overview',  label: '대시보드 요약' },
+              { id: 'monthly',   label: '월간 치료사 통계' },
+              { id: 'yearly',    label: '연간 치료사 통계' },
+              { id: 'sms',       label: '알리고 알림내역' },
+              { id: 'logs',      label: '전체 로그' },
+            ] as const).map(t => (
+              <button key={t.id} onClick={() => setAdminTab(t.id)}
+                className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all
+                  ${adminTab === t.id ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {/* 2행: 관리 */}
+          <div className="flex gap-2">
+            {([
+              { id: 'patients',    label: '환자 관리' },
+              { id: 'settlement',  label: '정산 관리' },
+              { id: 'leaves',      label: '휴무 관리' },
+              { id: 'therapists',  label: '치료사 관리' },
+            ] as const).map(t => (
+              <button key={t.id} onClick={() => setAdminTab(t.id)}
+                className={`flex-1 py-2.5 rounded-2xl text-sm font-semibold transition-all
+                  ${adminTab === t.id ? 'bg-sky-500 text-white shadow-lg shadow-sky-200' : 'bg-white text-slate-600 border border-slate-200'}`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* =========================================================================
@@ -2090,16 +2058,14 @@ export default function AdminPage() {
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-600 mb-1.5 block">
-                {therapistFormModal.mode === 'add' ? 'PIN (4자리 숫자)' : 'PIN 변경 (4자리, 비워두면 유지)'}
+                {therapistFormModal.mode === 'add' ? '비밀번호' : '비밀번호 변경 (비워두면 유지)'}
               </label>
               <input
                 type="password"
-                className="input-field tracking-widest text-center text-xl"
-                placeholder="••••"
-                maxLength={4}
-                inputMode="numeric"
+                className="input-field"
+                placeholder="비밀번호 입력"
                 value={therapistFormPin}
-                onChange={(e) => setTherapistFormPin(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => setTherapistFormPin(e.target.value)}
               />
             </div>
             <div className="flex gap-2 pt-2">

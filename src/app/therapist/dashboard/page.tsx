@@ -180,7 +180,7 @@ export default function TherapistDashboard() {
             { id: 'today',    label: '오늘 예약',  count: todayRes.length,    color: 'text-sky-600'   },
             { id: 'pending',  label: '예약 승인 대기', count: pendingRes.length,  color: 'text-amber-600' },
             { id: 'approved', label: '치료 완료',  count: approvedRes.length, color: 'text-emerald-600' },
-            { id: 'all',      label: '전체 예약',  count: null,               color: 'text-slate-600' },
+            { id: 'all',      label: `${allMonth}월 예약`,  count: allMonthRes.length, color: 'text-slate-600' },
             { id: 'leaves',   label: '휴가 관리',  count: leaves.length,      color: 'text-indigo-600' },
           ] as const).map(t => (
             <button
@@ -192,11 +192,7 @@ export default function TherapistDashboard() {
                   : `bg-white ${t.color} border border-slate-200 hover:border-sky-200`}
                 ${t.id === 'pending' && pendingRes.length > 0 && tab !== 'pending' ? 'border-amber-300 bg-amber-50' : ''}`}
             >
-              {t.count !== null ? (
-                <span className={`text-lg font-extrabold leading-none ${tab === t.id ? 'text-white' : t.color}`}>{t.count}</span>
-              ) : (
-                <span className="text-lg font-extrabold leading-none opacity-0 block h-[18px]">0</span>
-              )}
+              <span className={`text-lg font-extrabold leading-none ${tab === t.id ? 'text-white' : t.color}`}>{t.count}</span>
               <span className={`leading-tight ${tab === t.id ? 'text-white' : 'text-slate-500'}`}>{t.label}</span>
             </button>
           ))}
