@@ -1482,6 +1482,18 @@ export default function AdminPage() {
                           <div className="flex flex-col gap-1 items-center">
                             <button
                               onClick={() => {
+                                const patientRes = reservations
+                                  .filter(r => r.patient_phone === p.phone)
+                                  .sort((a, b) => (b.date + b.start_time).localeCompare(a.date + a.start_time));
+                                const latest = patientRes[0];
+                                if (latest) startEdit(latest);
+                              }}
+                              className="text-xs bg-sky-50 hover:bg-sky-100 text-sky-600 font-semibold px-3 py-1.5 rounded-lg transition-colors w-full whitespace-nowrap border border-sky-200"
+                            >
+                              📅 수정
+                            </button>
+                            <button
+                              onClick={() => {
                                 setPinChangePatient({ name: p.name, phone: p.phone });
                                 setNewPin('');
                               }}
