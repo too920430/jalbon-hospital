@@ -80,7 +80,7 @@ export default function AdminPage() {
 
   // Patients & Settlement Tab States
   const [patientSearch, setPatientSearch] = useState('');
-  const [patientStatusFilter, setPatientStatusFilter] = useState<'all' | 'pending' | 'approved' | 'done' | 'paid'>('all');
+  const [patientStatusFilter, setPatientStatusFilter] = useState<'all' | 'pending' | 'approved' | 'done' | 'paid' | 'no_show' | 'rejected' | 'blocked'>('all');
   const [patientTypeFilter, setPatientTypeFilter] = useState<'all' | 'new' | 'existing'>('all');
   const [patientTherapistFilter, setPatientTherapistFilter] = useState<string>('all');
   const [viewingHistoryFor, setViewingHistoryFor] = useState<any>(null);
@@ -537,7 +537,7 @@ export default function AdminPage() {
       isBlacklisted: blacklistedPhones.includes(phone)
     };
   }).filter(p => !patientSearch || p.name.includes(patientSearch) || p.phone.includes(patientSearch))
-    .filter(p => patientStatusFilter === 'all' || p.latestStatus === patientStatusFilter)
+    .filter(p => patientStatusFilter === 'all' || (patientStatusFilter === 'blocked' ? p.isBlacklisted : p.latestStatus === patientStatusFilter))
     .filter(p => patientTypeFilter === 'all' || (patientTypeFilter === 'new' ? p.isNew : !p.isNew))
     .filter(p => patientTherapistFilter === 'all' || p.mainTherapist === patientTherapistFilter)
     .sort((a, b) => b.latestDate.localeCompare(a.latestDate));
@@ -1411,6 +1411,7 @@ export default function AdminPage() {
                             <option value="paid">수납/치료 완료</option>
                             <option value="rejected">거절됨</option>
                             <option value="no_show">노쇼</option>
+                            <option value="blocked">차단됨</option>
                           </select>
                         </div>
                       </th>
@@ -1463,9 +1464,14 @@ export default function AdminPage() {
                           }
                         </td>
                         <td className="p-4 text-center">
-                          {p.latestStatus === 'done' ? <span className="bg-blue-100 text-blue-600 px-2 py-1 rounded-lg text-xs font-semibold">수납대기</span>
-                           : p.latestStatus === 'paid' ? <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg text-xs font-semibold">수납완료</span>
-                           : <span className="bg-slate-50 text-slate-400 px-2 py-1 rounded-lg text-xs font-semibold">{STATUS_MAP[p.latestStatus as keyof typeof STATUS_MAP]?.label || p.latestStatus}</span>}
+                          <div className="flex flex-col items-center gap-1">
+                            {p.isBlacklisted && (
+                              <span className="bg-slate-800 text-white px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap">🚫 차단됨</span>
+                            )}
+                            {p.latestStatus === 'done' ? <span className="bg-blue-100 text-blue-600 px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap">수납대기</span>
+                             : p.latestStatus === 'paid' ? <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap">수납완료</span>
+                             : <span className="bg-slate-50 text-slate-400 px-2 py-1 rounded-lg text-xs font-semibold whitespace-nowrap">{STATUS_MAP[p.latestStatus as keyof typeof STATUS_MAP]?.label || p.latestStatus}</span>}
+                          </div>
                         </td>
                         <td className="p-4 text-center text-slate-600 font-medium whitespace-nowrap">
                           {p.mainTherapist}
