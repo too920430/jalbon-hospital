@@ -52,6 +52,7 @@ export default function TherapistDashboard() {
   const [leaveReason, setLeaveReason] = useState('');
 
   const [newResCount, setNewResCount] = useState(0);
+  const [selectedCalDay, setSelectedCalDay] = useState<string | null>(null);
   const [memoTarget, setMemoTarget] = useState<{id: string; memo: string} | null>(null);
   const [memoInput, setMemoInput] = useState('');
   const [memoSaving, setMemoSaving] = useState(false);
@@ -157,12 +158,13 @@ export default function TherapistDashboard() {
 
   const allMonthStr = `${allYear}-${String(allMonth).padStart(2, '0')}`;
   const allMonthRes = reservations.filter(r => r.date.startsWith(allMonthStr));
+  const allDisplayRes = selectedCalDay ? allMonthRes.filter(r => r.date === selectedCalDay) : allMonthRes;
 
   const displayedMap: Partial<Record<TabType, Reservation[]>> = {
     today: todayRes,
     pending: pendingRes,
     approved: approvedRes,
-    all: allMonthRes,
+    all: allDisplayRes,
   };
   const displayed = (displayedMap[tab] || []).sort((a, b) => (a.date + a.start_time).localeCompare(b.date + b.start_time));
 
@@ -236,7 +238,7 @@ export default function TherapistDashboard() {
         {tab === 'all' && (
           <div className="flex items-center justify-between card py-3 px-4 animate-fade-in-up relative z-50">
             <div className="flex items-center gap-2">
-              <button onClick={() => { const d = new Date(allYear, allMonth - 2); setAllYear(d.getFullYear()); setAllMonth(d.getMonth() + 1); }}
+              <button onClick={() => { const d = new Date(allYear, allMonth - 2); setAllYear(d.getFullYear()); setAllMonth(d.getMonth() + 1); setSelectedCalDay(null); }}
                 className="text-slate-400 hover:text-sky-500 font-bold text-lg transition-colors">◀</button>
               <button
                 onClick={() => { setPickerYear(allYear); setShowPicker(v => !v); }}
@@ -244,7 +246,7 @@ export default function TherapistDashboard() {
               >
                 {allYear}년 {allMonth}월
               </button>
-              <button onClick={() => { const d = new Date(allYear, allMonth); setAllYear(d.getFullYear()); setAllMonth(d.getMonth() + 1); }}
+              <button onClick={() => { const d = new Date(allYear, allMonth); setAllYear(d.getFullYear()); setAllMonth(d.getMonth() + 1); setSelectedCalDay(null); }}
                 className="text-slate-400 hover:text-sky-500 font-bold text-lg transition-colors">▶</button>
             </div>
             <span className="text-xs text-slate-400">{allMonthRes.length}건</span>
@@ -261,7 +263,7 @@ export default function TherapistDashboard() {
                 <div className="grid grid-cols-3 gap-2">
                   {MONTHS.map((m, i) => (
                     <button key={i}
-                      onClick={() => { setAllYear(pickerYear); setAllMonth(i + 1); setShowPicker(false); }}
+                      onClick={() => { setAllYear(pickerYear); setAllMonth(i + 1); setShowPicker(false); setSelectedCalDay(null); }}
                       className={`py-2 rounded-xl text-sm font-semibold transition-all
                         ${allYear === pickerYear && allMonth === i + 1
                           ? 'bg-sky-500 text-white'
@@ -273,6 +275,75 @@ export default function TherapistDashboard() {
             )}
           </div>
         )}
+
+        {/* 해당 월 예약 - 달력 */}
+        {tab === 'all' && (() => {
+          const calFirstDay = new Date(allYear, allMonth - 1, 1).getDay();
+          const calDaysInMonth = new Date(allYear, allMonth, 0).getDate();
+          const calCells: (number | null)[] = [];
+          for (let i = 0; i < calFirstDay; i++) calCells.push(null);
+          for (let i = 1; i <= calDaysInMonth; i++) calCells.push(i);
+
+          const dayCountMap = allMonthRes.reduce((acc, r) => {
+            const day = parseInt(r.date.split('-')[2]);
+            acc[day] = (acc[day] || 0) + 1;
+            return acc;
+          }, {} as Record<number, number>);
+
+          return (
+            <div className="card animate-fade-in-up">
+              <div className="grid grid-cols-7 gap-1 text-center mb-1">
+                {['일','월','화','수','목','금','토'].map((d, i) => (
+                  <div key={d} className={`text-[11px] font-bold py-1 ${i===0?'text-rose-400':i===6?'text-blue-400':'text-slate-400'}`}>{d}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {calCells.map((day, i) => {
+                  if (!day) return <div key={`e-${i}`} />;
+                  const dateStr = `${allYear}-${String(allMonth).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                  const cnt = dayCountMap[day] || 0;
+                  const isSelected = selectedCalDay === dateStr;
+                  const isToday = dateStr === toDateStr(new Date());
+                  const dow = (calFirstDay + day - 1) % 7;
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => setSelectedCalDay(isSelected ? null : dateStr)}
+                      className={`relative flex flex-col items-center justify-start pt-1 pb-1.5 rounded-xl min-h-[48px] transition-all border
+                        ${isSelected ? 'bg-sky-500 border-sky-500 shadow-md' :
+                          cnt > 0 ? 'bg-white border-sky-200 hover:bg-sky-50' :
+                          'bg-slate-50 border-transparent hover:bg-slate-100'}`}
+                    >
+                      <span className={`text-xs font-bold leading-none
+                        ${isSelected ? 'text-white' :
+                          isToday ? 'text-sky-600' :
+                          dow===0 ? 'text-rose-400' : dow===6 ? 'text-blue-400' : 'text-slate-600'}`}>
+                        {day}
+                      </span>
+                      {cnt > 0 && (
+                        <span className={`mt-0.5 text-[10px] font-extrabold leading-none
+                          ${isSelected ? 'text-white' : 'text-sky-600'}`}>
+                          {cnt}건
+                        </span>
+                      )}
+                      {isToday && !isSelected && (
+                        <span className="absolute top-0.5 right-1 w-1.5 h-1.5 rounded-full bg-sky-400" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              {selectedCalDay && (
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-sky-600">
+                    {parseInt(selectedCalDay.split('-')[1])}월 {parseInt(selectedCalDay.split('-')[2])}일 · {allDisplayRes.length}건
+                  </span>
+                  <button onClick={() => setSelectedCalDay(null)} className="text-xs text-slate-400 hover:text-slate-600 font-semibold">전체 보기</button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* 휴가 관리 탭 (달력 UI) */}
         {tab === 'leaves' && (() => {
